@@ -1,0 +1,9 @@
+pub mod detection;
+pub mod package_manager;
+pub mod rpm_ostree;
+pub mod rpm;
+pub mod dnf;
+pub mod apt;
+pub mod pacman;
+pub mod flatpak;
+pub mod snap;
