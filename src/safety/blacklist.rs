@@ -1,7 +1,27 @@
-pub fn load_blacklist(path: &std::path::Path) -> crate::error::Result<Vec<String>> {
-    todo!("Implement blacklist loading")
+use crate::error::Result;
+use std::path::Path;
+
+pub fn load_blacklist(path: &Path) -> Result<Vec<String>> {
+    let content = std::fs::read_to_string(path)?;
+    Ok(parse_list(&content))
 }
 
-pub fn save_blacklist(path: &std::path::Path, blacklist: &[String]) -> crate::error::Result<()> {
-    todo!("Implement blacklist saving")
+pub fn save_blacklist(path: &Path, blacklist: &[String]) -> Result<()> {
+    let content = blacklist
+        .iter()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    std::fs::write(path, format!("{content}\n"))?;
+    Ok(())
+}
+
+fn parse_list(content: &str) -> Vec<String> {
+    content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(String::from)
+        .collect()
 }

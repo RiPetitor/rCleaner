@@ -7,8 +7,10 @@ pub mod old_packages;
 pub mod temp_files;
 
 use crate::cleaner::base::Cleaner;
+use crate::config::Config;
 use crate::error::Result;
 use crate::models::CleanupItem;
+use crate::safety::SafetyChecker;
 
 pub fn scan_all() -> Result<Vec<CleanupItem>> {
     let cleaners: Vec<Box<dyn Cleaner>> = vec![
@@ -27,6 +29,21 @@ pub fn scan_all() -> Result<Vec<CleanupItem>> {
             Err(err) => {
                 log::warn!("{} scan failed: {}", cleaner.name(), err);
             }
+        }
+    }
+
+    let config = match Config::load(&Config::default_path()) {
+        Ok(config) => config,
+        Err(err) => {
+            log::warn!("Failed to load config for safety: {}", err);
+            Config::default()
+        }
+    };
+    let checker = SafetyChecker::new(config);
+    for item in items.iter_mut() {
+        if let Err(err) = checker.apply_to_item(item) {
+            log::warn!("Safety check failed for {}: {}", item.name, err);
+            item.can_clean = false;
         }
     }
 
