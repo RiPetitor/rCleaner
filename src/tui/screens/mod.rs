@@ -1,6 +1,7 @@
-pub mod main;
 pub mod cleanup;
+pub mod common;
 pub mod confirm;
-pub mod settings;
+pub mod main;
 pub mod progress;
 pub mod results;
+pub mod settings;
