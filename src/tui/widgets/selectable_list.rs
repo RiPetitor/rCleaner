@@ -26,26 +26,31 @@ pub fn render_selectable_list(
     let list_items: Vec<ListItem> = items
         .iter()
         .map(|item| {
-            let marker = if !item.can_clean {
-                "[!]"
+            let (marker, marker_style) = if !item.can_clean {
+                ("[!]", Style::default().fg(Color::Red))
             } else if item.selected {
-                "[x]"
+                ("[x]", Style::default().fg(Color::Green))
             } else {
-                "[ ]"
+                ("[ ]", Style::default().fg(Color::DarkGray))
             };
 
             let display_name = item.path.as_deref().unwrap_or(&item.name);
             let name = truncate_ascii(display_name, name_width);
             let size = format_size(item.size);
-            let line = format!("{marker} {name:<name_width$} {size:>size_width$}");
 
-            let style = if item.can_clean {
+            let text_style = if item.can_clean {
                 Style::default()
             } else {
                 Style::default().fg(Color::DarkGray)
             };
 
-            ListItem::new(Line::from(vec![Span::styled(line, style)]))
+            ListItem::new(Line::from(vec![
+                Span::styled(marker, marker_style),
+                Span::styled(
+                    format!(" {name:<name_width$} {size:>size_width$}"),
+                    text_style,
+                ),
+            ]))
         })
         .collect();
 
