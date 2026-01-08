@@ -95,7 +95,7 @@ fn split_lines(output: &str) -> Vec<String> {
         .collect()
 }
 
-fn is_no_requires_message(stderr: &str, package: &str) -> bool {
+pub(crate) fn is_no_requires_message(stderr: &str, package: &str) -> bool {
     let lower = stderr.to_lowercase();
     let markers = [
         "no package requires",

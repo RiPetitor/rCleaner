@@ -1,5 +1,6 @@
 use crate::error::{RcleanerError, Result};
 use crate::system::package_manager::{PackageManager, command_failed, run_command};
+use crate::system::rpm::is_no_requires_message;
 
 pub struct DnfManager;
 
@@ -33,8 +34,9 @@ impl PackageManager for DnfManager {
     fn check_dependencies(&self, package: &str) -> Result<Vec<String>> {
         let output = run_command("rpm", &["-q", "--whatrequires", package])?;
         if !output.status.success() {
-            let stderr = output.stderr.to_lowercase();
-            if stderr.contains("no package requires") || output.stdout.trim().is_empty() {
+            if is_no_requires_message(&output.stderr, package)
+                || is_no_requires_message(&output.stdout, package)
+            {
                 return Ok(Vec::new());
             }
             return Err(command_failed("rpm", &output));
