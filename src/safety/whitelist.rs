@@ -1,11 +1,13 @@
 use crate::error::Result;
 use std::path::Path;
 
+#[allow(dead_code)]
 pub fn load_whitelist(path: &Path) -> Result<Vec<String>> {
     let content = std::fs::read_to_string(path)?;
     Ok(parse_list(&content))
 }
 
+#[allow(dead_code)]
 pub fn save_whitelist(path: &Path, whitelist: &[String]) -> Result<()> {
     let content = whitelist
         .iter()
@@ -17,6 +19,7 @@ pub fn save_whitelist(path: &Path, whitelist: &[String]) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 fn parse_list(content: &str) -> Vec<String> {
     content
         .lines()

@@ -10,6 +10,7 @@ pub struct SafetyRules {
     pub blacklist: Vec<SafetyRule>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct SafetyRule {
     pub pattern: String,
@@ -17,6 +18,7 @@ pub struct SafetyRule {
     pub rule_type: SafetyRuleType,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SafetyRuleType {
     ProtectSystemPackages,
@@ -26,6 +28,7 @@ pub enum SafetyRuleType {
     ProtectActiveApplications,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 struct SafetyRuleTemplate {
     pattern: &'static str,
