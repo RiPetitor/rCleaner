@@ -1,7 +1,6 @@
 use crate::tui::screens::common::render_header;
 use crate::tui::state::State;
 use crate::tui::widgets::info_panel::render_info_panel;
-use crate::tui::widgets::progress_bar::render_progress_bar;
 use crate::tui::widgets::selectable_list::render_selectable_list;
 use crate::tui::widgets::status_bar::render_status_bar;
 use crate::tui::widgets::tabs::render_tabs;
@@ -61,12 +60,8 @@ pub fn render_main_screen(
         );
     }
 
-    let ratio = if state.total_size == 0 {
-        0.0
-    } else {
-        state.selected_size as f64 / state.total_size as f64
-    };
-    render_progress_bar(frame, left_chunks[1], ratio, "Selected");
+    let matches = visible_items.len();
+    render_search_box(frame, left_chunks[1], state, matches);
 
     let right_chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -104,6 +99,7 @@ pub fn render_main_screen(
         "[Enter] Clean",
         "[S] Settings",
         "[R] Refresh",
+        "[/] Search",
         "[Q] Quit",
     ]
     .into_iter()
@@ -114,6 +110,10 @@ pub fn render_main_screen(
         keys.push(message.to_string());
     }
 
+    if state.search_active {
+        keys.push("Type to search, Esc to exit".to_string());
+    }
+
     render_status_bar(frame, chunks[3], &keys);
 }
 
@@ -122,5 +122,37 @@ fn format_source(item: &crate::models::CleanupItem) -> String {
         crate::models::CleanupSource::FileSystem => "Files".to_string(),
         crate::models::CleanupSource::PackageManager(name) => format!("Package: {name}"),
         crate::models::CleanupSource::Container(name) => format!("Container: {name}"),
+    }
+}
+
+fn render_search_box(
+    frame: &mut ratatui::Frame,
+    area: ratatui::layout::Rect,
+    state: &State,
+    matches: usize,
+) {
+    let block = Block::default().borders(Borders::ALL).title("Search");
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let query = state.search_query.trim();
+    let label = if query.is_empty() {
+        "Search: /".to_string()
+    } else {
+        format!("Search: {}", state.search_query)
+    };
+    let content = format!("{label}  Matches: {matches}");
+
+    let text = Paragraph::new(content).style(Style::default().fg(Color::White));
+    frame.render_widget(text, inner);
+
+    if state.search_active {
+        let cursor_offset = "Search: ".len() + state.search_query.len();
+        let max_x = inner.width.saturating_sub(1) as usize;
+        let cursor_x = inner.x + cursor_offset.min(max_x) as u16;
+        frame.set_cursor_position(ratatui::layout::Position {
+            x: cursor_x,
+            y: inner.y,
+        });
     }
 }

@@ -128,6 +128,24 @@ impl App {
         key: event::KeyEvent,
         terminal: &mut DefaultTerminal,
     ) -> Result<()> {
+        if self.dispatcher.store().state().search_active {
+            match key.code {
+                KeyCode::Esc | KeyCode::Enter => {
+                    self.dispatcher.dispatch(Action::EndSearch);
+                }
+                KeyCode::Backspace => {
+                    self.dispatcher.dispatch(Action::BackspaceSearch);
+                }
+                KeyCode::Char(ch) => {
+                    if !ch.is_control() {
+                        self.dispatcher.dispatch(Action::AppendSearch(ch));
+                    }
+                }
+                _ => {}
+            }
+            return Ok(());
+        }
+
         match key.code {
             KeyCode::Char('q') | KeyCode::Char('Q') => {
                 self.dispatcher.dispatch(Action::Exit);
@@ -145,6 +163,14 @@ impl App {
                 } else {
                     self.dispatcher
                         .dispatch(Action::SetStatus(Some("No items selected.".to_string())));
+                }
+            }
+            KeyCode::Char('/') => {
+                self.dispatcher.dispatch(Action::StartSearch);
+            }
+            KeyCode::Esc => {
+                if !self.dispatcher.store().state().search_query.is_empty() {
+                    self.dispatcher.dispatch(Action::ClearSearch);
                 }
             }
             KeyCode::Tab => {

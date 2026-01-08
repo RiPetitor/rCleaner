@@ -27,6 +27,11 @@ pub enum Action {
     SelectPrev,
     ToggleSelection,
     ToggleAllVisible,
+    StartSearch,
+    EndSearch,
+    ClearSearch,
+    AppendSearch(char),
+    BackspaceSearch,
 
     OpenConfirm,
     OpenSettings,

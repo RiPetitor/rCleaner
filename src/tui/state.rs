@@ -15,6 +15,8 @@ pub struct State {
     pub cleanup_step: Option<String>,
     pub last_result: Option<CleanupResult>,
     pub status_message: Option<String>,
+    pub search_query: String,
+    pub search_active: bool,
     pub should_exit: bool,
 }
 
@@ -33,6 +35,8 @@ impl Default for State {
             cleanup_step: None,
             last_result: None,
             status_message: None,
+            search_query: String::new(),
+            search_active: false,
             should_exit: false,
         }
     }
@@ -58,7 +62,7 @@ impl State {
         let category = self.current_category();
         self.items
             .iter()
-            .filter(|item| item.category == category)
+            .filter(|item| item.category == category && self.matches_search(item))
             .count()
     }
 
@@ -66,7 +70,7 @@ impl State {
         let category = self.current_category();
         self.items
             .iter()
-            .filter(|item| item.category == category)
+            .filter(|item| item.category == category && self.matches_search(item))
             .collect()
     }
 
@@ -75,7 +79,7 @@ impl State {
         self.items
             .iter()
             .enumerate()
-            .filter(|(_, item)| item.category == category)
+            .filter(|(_, item)| item.category == category && self.matches_search(item))
             .map(|(index, _)| index)
             .collect()
     }
@@ -114,5 +118,25 @@ impl State {
 
     pub fn selected_count(&self) -> usize {
         self.items.iter().filter(|item| item.selected).count()
+    }
+
+    fn matches_search(&self, item: &CleanupItem) -> bool {
+        let query = self.search_query.trim();
+        if query.is_empty() {
+            return true;
+        }
+        let query = query.to_lowercase();
+        if item.name.to_lowercase().contains(&query) {
+            return true;
+        }
+        if item.description.to_lowercase().contains(&query) {
+            return true;
+        }
+        if let Some(path) = &item.path {
+            if path.to_lowercase().contains(&query) {
+                return true;
+            }
+        }
+        false
     }
 }

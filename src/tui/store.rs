@@ -29,6 +29,8 @@ impl Store {
                 self.state.cleanup_step = None;
                 self.state.last_result = None;
                 self.state.status_message = None;
+                self.state.search_query.clear();
+                self.state.search_active = false;
             }
 
             Action::Exit => {
@@ -134,12 +136,39 @@ impl Store {
                 self.state.update_selected_size();
             }
 
+            Action::StartSearch => {
+                self.state.search_active = true;
+                self.state.status_message = Some("Search mode".to_string());
+            }
+
+            Action::EndSearch => {
+                self.state.search_active = false;
+                self.state.status_message = None;
+            }
+
+            Action::ClearSearch => {
+                self.state.search_query.clear();
+                self.state.selected_index = 0;
+            }
+
+            Action::AppendSearch(ch) => {
+                self.state.search_query.push(ch);
+                self.state.selected_index = 0;
+            }
+
+            Action::BackspaceSearch => {
+                self.state.search_query.pop();
+                self.state.selected_index = 0;
+            }
+
             Action::OpenConfirm => {
                 self.state.active_screen = crate::tui::action::Screen::Confirm;
+                self.state.search_active = false;
             }
 
             Action::OpenSettings => {
                 self.state.active_screen = crate::tui::action::Screen::Settings;
+                self.state.search_active = false;
             }
 
             Action::BackToMain => {
@@ -147,6 +176,7 @@ impl Store {
                 self.state.cleanup_in_progress = false;
                 self.state.cleanup_progress = 0.0;
                 self.state.cleanup_step = None;
+                self.state.search_active = false;
             }
 
             Action::StartCleanup => {
@@ -154,6 +184,7 @@ impl Store {
                 self.state.cleanup_in_progress = true;
                 self.state.cleanup_progress = 0.0;
                 self.state.cleanup_step = Some("Preparing cleanup...".to_string());
+                self.state.search_active = false;
             }
 
             Action::CancelCleanup => {
