@@ -33,8 +33,7 @@ impl PackageManager for RpmManager {
     fn check_dependencies(&self, package: &str) -> Result<Vec<String>> {
         let output = run_command("rpm", &["-q", "--whatrequires", package])?;
         if !output.status.success() {
-            let stderr = output.stderr.to_lowercase();
-            if stderr.contains("no package requires") || output.stdout.trim().is_empty() {
+            if output.stdout.trim().is_empty() && is_no_requires_message(&output.stderr, package) {
                 return Ok(Vec::new());
             }
             return Err(command_failed("rpm", &output));
@@ -92,4 +91,21 @@ fn split_lines(output: &str) -> Vec<String> {
         .filter(|line| !line.is_empty())
         .map(String::from)
         .collect()
+}
+
+fn is_no_requires_message(stderr: &str, package: &str) -> bool {
+    let lower = stderr.to_lowercase();
+    let package_lower = package.to_lowercase();
+    if !package_lower.is_empty() && !lower.contains(&package_lower) {
+        return false;
+    }
+
+    [
+        "no package requires",
+        "no packages require",
+        "не требует",
+        "не требуется",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker))
 }
