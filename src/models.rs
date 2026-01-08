@@ -11,6 +11,7 @@ pub struct CleanupItem {
     pub source: CleanupSource,
     pub selected: bool,
     pub can_clean: bool,
+    pub dependencies: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,4 +29,12 @@ pub enum CleanupSource {
     FileSystem,
     PackageManager(String),
     Container(String),
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CleanupResult {
+    pub cleaned_items: usize,
+    pub freed_bytes: u64,
+    pub skipped_items: usize,
+    pub errors: Vec<String>,
 }

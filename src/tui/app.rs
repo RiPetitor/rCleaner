@@ -1,3 +1,4 @@
+use crate::cleaner;
 use crate::error::Result;
 use crate::tui::action::Action;
 use crate::tui::dispatcher::Dispatcher;
@@ -28,6 +29,8 @@ impl App {
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
+        self.refresh_items();
+
         loop {
             let state = self.dispatcher.store().state().clone();
 
@@ -152,6 +155,7 @@ impl App {
             }
             KeyCode::Char('r') | KeyCode::Char('R') => {
                 self.dispatcher.dispatch(Action::UpdateCache);
+                self.refresh_items();
             }
             KeyCode::Enter => {
                 self.dispatcher.dispatch(Action::StartCleanup);
@@ -198,6 +202,13 @@ impl App {
                 self.dispatcher.dispatch(Action::ToggleSelection);
             }
             _ => {}
+        }
+    }
+
+    fn refresh_items(&mut self) {
+        match cleaner::scan_all() {
+            Ok(items) => self.dispatcher.store_mut().set_items(items),
+            Err(err) => log::error!("Failed to scan items: {}", err),
         }
     }
 }
