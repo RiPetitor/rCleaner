@@ -1,5 +1,6 @@
 use crate::error::Result;
 use crate::system::package_manager::{PackageManager, command_failed, run_command};
+use std::fs;
 use std::path::Path;
 
 pub struct SnapManager;
@@ -67,6 +68,14 @@ pub fn list_installed() -> Result<Vec<String>> {
     SnapManager::new().list_installed()
 }
 
+pub fn list_installed_with_sizes() -> Result<Vec<(String, u64)>> {
+    let output = run_command("snap", &["list"])?;
+    if !output.status.success() {
+        return Err(command_failed("snap", &output));
+    }
+    Ok(parse_snap_list_with_sizes(&output.stdout))
+}
+
 pub fn remove_packages(packages: &[String], dry_run: bool) -> Result<()> {
     SnapManager::new().remove_packages(packages, dry_run)
 }
@@ -82,4 +91,28 @@ fn parse_snap_list(output: &str) -> Vec<String> {
         .filter_map(|line| line.split_whitespace().next())
         .map(String::from)
         .collect()
+}
+
+fn parse_snap_list_with_sizes(output: &str) -> Vec<(String, u64)> {
+    let mut items = Vec::new();
+    for line in output.lines().skip(1) {
+        let mut parts = line.split_whitespace();
+        let name = match parts.next() {
+            Some(name) => name,
+            None => continue,
+        };
+        let _version = parts.next();
+        let rev = match parts.next() {
+            Some(rev) => rev,
+            None => {
+                items.push((name.to_string(), 0));
+                continue;
+            }
+        };
+
+        let snap_path = format!("/var/lib/snapd/snaps/{}_{}.snap", name, rev);
+        let size = fs::metadata(&snap_path).map(|meta| meta.len()).unwrap_or(0);
+        items.push((name.to_string(), size));
+    }
+    items
 }

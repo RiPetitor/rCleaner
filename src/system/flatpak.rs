@@ -1,5 +1,6 @@
 use crate::error::Result;
 use crate::system::package_manager::{PackageManager, command_failed, run_command};
+use crate::utils::size_format::parse_size_string;
 use std::path::Path;
 
 pub struct FlatpakManager;
@@ -63,6 +64,50 @@ pub fn is_flatpak_available() -> bool {
 
 pub fn list_installed() -> Result<Vec<String>> {
     FlatpakManager::new().list_installed()
+}
+
+pub fn list_installed_with_sizes() -> Result<Vec<(String, u64)>> {
+    let columns = ["application,installed-size", "application,size"];
+    for column in columns {
+        if let Ok(items) = list_with_columns(column) {
+            if !items.is_empty() {
+                return Ok(items);
+            }
+        }
+    }
+
+    Ok(list_installed()?.into_iter().map(|app| (app, 0)).collect())
+}
+
+fn list_with_columns(columns: &str) -> Result<Vec<(String, u64)>> {
+    let args = vec![
+        "list".to_string(),
+        "--app".to_string(),
+        format!("--columns={columns}"),
+    ];
+    let args_ref = args.iter().map(String::as_str).collect::<Vec<_>>();
+    let output = run_command("flatpak", &args_ref)?;
+    if !output.status.success() {
+        return Err(command_failed("flatpak", &output));
+    }
+
+    let mut items = Vec::new();
+    for line in output.stdout.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let mut parts = line.split_whitespace();
+        let app = match parts.next() {
+            Some(app) => app.to_string(),
+            None => continue,
+        };
+        let size_text = parts.collect::<Vec<_>>().join(" ");
+        let size = parse_size_string(&size_text).unwrap_or(0);
+        items.push((app, size));
+    }
+
+    Ok(items)
 }
 
 pub fn remove_packages(packages: &[String], dry_run: bool) -> Result<()> {

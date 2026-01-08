@@ -3,6 +3,7 @@ use crate::cleaner::base::Cleaner;
 use crate::error::{RcleanerError, Result};
 use crate::models::{CleanupCategory, CleanupItem, CleanupResult, CleanupSource};
 use crate::system::{flatpak, snap};
+use crate::utils::size_format::parse_size_string;
 use std::env;
 use std::path::Path;
 
@@ -27,8 +28,8 @@ impl Cleaner for ApplicationsCleaner {
         let mut items = Vec::new();
 
         if flatpak::is_flatpak_available() {
-            if let Ok(apps) = flatpak::list_installed() {
-                for app in apps {
+            if let Ok(apps) = flatpak::list_installed_with_sizes() {
+                for (app, size) in apps {
                     if app.trim().is_empty() {
                         continue;
                     }
@@ -36,7 +37,7 @@ impl Cleaner for ApplicationsCleaner {
                         id: format!("flatpak:{}", app),
                         name: app.clone(),
                         path: None,
-                        size: 0,
+                        size,
                         description: "Flatpak application".to_string(),
                         category: self.category(),
                         source: CleanupSource::PackageManager("flatpak".to_string()),
@@ -49,8 +50,8 @@ impl Cleaner for ApplicationsCleaner {
         }
 
         if snap::is_snap_available() {
-            if let Ok(apps) = snap::list_installed() {
-                for app in apps {
+            if let Ok(apps) = snap::list_installed_with_sizes() {
+                for (app, size) in apps {
                     if app.trim().is_empty() || app == "Name" {
                         continue;
                     }
@@ -58,7 +59,7 @@ impl Cleaner for ApplicationsCleaner {
                         id: format!("snap:{}", app),
                         name: app.clone(),
                         path: None,
-                        size: 0,
+                        size,
                         description: "Snap application".to_string(),
                         category: self.category(),
                         source: CleanupSource::PackageManager("snap".to_string()),
@@ -141,7 +142,7 @@ fn list_container_images(runtime: &str) -> Result<Vec<CleanupItem>> {
     }
 
     let output = std::process::Command::new(runtime)
-        .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
+        .args(["images", "--format", "{{.Repository}}:{{.Tag}}\t{{.Size}}"])
         .output();
 
     let Ok(output) = output else {
@@ -155,7 +156,13 @@ fn list_container_images(runtime: &str) -> Result<Vec<CleanupItem>> {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut items = Vec::new();
     for line in stdout.lines() {
-        let name = line.trim();
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let mut parts = line.split('\t');
+        let name = parts.next().unwrap_or("").trim();
+        let size_text = parts.next().unwrap_or("").trim();
         if name.is_empty() || name == "<none>:<none>" {
             continue;
         }
@@ -163,7 +170,7 @@ fn list_container_images(runtime: &str) -> Result<Vec<CleanupItem>> {
             id: format!("{runtime}:{name}"),
             name: name.to_string(),
             path: None,
-            size: 0,
+            size: parse_size_string(size_text).unwrap_or(0),
             description: format!("Container image ({runtime})"),
             category: CleanupCategory::Applications,
             source: CleanupSource::Container(runtime.to_string()),
