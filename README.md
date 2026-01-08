@@ -43,6 +43,7 @@ message instead of crashing.
 | Space | Toggle selection |
 | A | Select all visible |
 | S | Open settings |
+| / | Search by name |
 | Enter | Start cleanup |
 | Y / N / Esc | Confirm / cancel cleanup |
 
@@ -127,6 +128,7 @@ cargo run
 | Space | Выбор элемента |
 | A | Выбрать всё видимое |
 | S | Открыть настройки |
+| / | Поиск по имени |
 | Enter | Запуск очистки |
 | Y / N / Esc | Подтвердить / отменить |
 
