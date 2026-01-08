@@ -1,17 +1,26 @@
 use crate::cleaner;
 use crate::error::Result;
+use crate::models::CleanupItem;
 use crate::system::detection::{SystemInfo, SystemType, detect_system};
 use crate::tui::action::{Action, SafetyLevel, Screen};
 use crate::tui::dispatcher::Dispatcher;
 use crate::tui::screens::{confirm, main, progress, results, settings};
 use crate::tui::state::State;
+use crate::utils::cache;
 use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
 use ratatui::{DefaultTerminal, Frame};
+use std::sync::mpsc;
+use std::thread;
 use std::time::Duration;
+
+type ScanResult = std::result::Result<Vec<CleanupItem>, String>;
 
 pub struct App {
     dispatcher: Dispatcher,
     system_label: String,
+    scan_tx: mpsc::Sender<ScanResult>,
+    scan_rx: mpsc::Receiver<ScanResult>,
+    scan_in_progress: bool,
 }
 
 impl App {
@@ -19,16 +28,24 @@ impl App {
         let mut dispatcher = Dispatcher::new();
         dispatcher.dispatch(Action::Init);
 
-        Self {
+        let (scan_tx, scan_rx) = mpsc::channel();
+        let mut app = Self {
             dispatcher,
             system_label: build_system_label(),
-        }
+            scan_tx,
+            scan_rx,
+            scan_in_progress: false,
+        };
+
+        app.load_cached_items();
+        app.request_scan("Startup scan");
+
+        app
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
-        self.refresh_items();
-
         loop {
+            self.poll_scan_results();
             let state = self.dispatcher.store().state().clone();
             if state.should_exit {
                 break;
@@ -92,8 +109,7 @@ impl App {
                 self.dispatcher.dispatch(Action::Exit);
             }
             KeyCode::Char('r') | KeyCode::Char('R') => {
-                self.dispatcher.dispatch(Action::Refresh);
-                self.refresh_items();
+                self.request_scan("Manual refresh");
             }
             KeyCode::Enter => {
                 if self.dispatcher.store().state().selected_count() > 0 {
@@ -165,22 +181,9 @@ impl App {
         match key.code {
             KeyCode::Enter | KeyCode::Esc => {
                 self.dispatcher.dispatch(Action::BackToMain);
-                self.dispatcher.dispatch(Action::Refresh);
-                self.refresh_items();
+                self.request_scan("Post-cleanup refresh");
             }
             _ => {}
-        }
-    }
-
-    fn refresh_items(&mut self) {
-        match cleaner::scan_all() {
-            Ok(items) => self.dispatcher.dispatch(Action::SetItems(items)),
-            Err(err) => {
-                log::error!("Failed to scan items: {}", err);
-                self.dispatcher.dispatch(Action::SetStatus(Some(
-                    "Scan failed. See logs.".to_string(),
-                )));
-            }
         }
     }
 
@@ -225,6 +228,63 @@ impl App {
         }
 
         Ok(())
+    }
+
+    fn load_cached_items(&mut self) {
+        match cache::load_cached_items() {
+            Ok(Some(items)) => {
+                self.dispatcher.dispatch(Action::SetItems(items));
+                self.dispatcher.dispatch(Action::SetStatus(Some(
+                    "Loaded cached results.".to_string(),
+                )));
+            }
+            Ok(None) => {}
+            Err(err) => {
+                log::warn!("Failed to load cached results: {}", err);
+            }
+        }
+    }
+
+    fn request_scan(&mut self, reason: &str) {
+        if self.scan_in_progress {
+            self.dispatcher.dispatch(Action::SetStatus(Some(
+                "Scan already in progress.".to_string(),
+            )));
+            return;
+        }
+
+        self.scan_in_progress = true;
+        self.dispatcher.dispatch(Action::Refresh);
+        self.dispatcher
+            .dispatch(Action::SetStatus(Some(format!("{reason}..."))));
+
+        let tx = self.scan_tx.clone();
+        thread::spawn(move || {
+            let result = cleaner::scan_all().map_err(|err| err.to_string());
+            let _ = tx.send(result);
+        });
+    }
+
+    fn poll_scan_results(&mut self) {
+        while let Ok(result) = self.scan_rx.try_recv() {
+            self.scan_in_progress = false;
+            match result {
+                Ok(items) => {
+                    if let Err(err) = cache::save_cached_items(&items) {
+                        log::warn!("Failed to save cache: {}", err);
+                    }
+                    self.dispatcher.dispatch(Action::SetItems(items));
+                    self.dispatcher
+                        .dispatch(Action::SetStatus(Some("Scan complete.".to_string())));
+                }
+                Err(err) => {
+                    log::error!("Failed to scan items: {}", err);
+                    self.dispatcher.dispatch(Action::SetStatus(Some(
+                        "Scan failed. See logs.".to_string(),
+                    )));
+                }
+            }
+        }
     }
 
     fn draw_current(&self, terminal: &mut DefaultTerminal) {
