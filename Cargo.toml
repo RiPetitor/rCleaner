@@ -44,15 +44,16 @@ rayon = "1.10"
 libsystemd = "0.7"
 
 # Опционально для пакетных менеджеров
-librpm = { version = "0.1", optional = true }
+# librpm удалён из-за критичных уязвимостей (RUSTSEC-2022-0013, RUSTSEC-2022-0006)
+# в цепочке зависимостей (bindgen 0.35.0 → regex 0.2.11)
+# RPM поддержка реализована через вызов команды rpm напрямую
 flatpak = { version = "0.18", optional = true }
 
 [features]
 default = ["systemd"]
 systemd = []
-rpm = ["dep:librpm"]
 flatpak = ["dep:flatpak"]
-all-managers = ["rpm", "flatpak"]
+all-managers = ["flatpak"]
 
 [[bin]]
 name = "rcleaner"
