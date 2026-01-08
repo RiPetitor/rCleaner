@@ -76,9 +76,10 @@ impl App {
 
             if event::poll(Duration::from_millis(150))?
                 && let event::Event::Key(key) = event::read()?
-                    && key.kind == KeyEventKind::Press {
-                        self.handle_key_event(key, terminal)?;
-                    }
+                && key.kind == KeyEventKind::Press
+            {
+                self.handle_key_event(key, terminal)?;
+            }
         }
 
         Ok(())
@@ -203,6 +204,18 @@ impl App {
             KeyCode::Char('s') | KeyCode::Char('S') => {
                 self.dispatcher.dispatch(Action::OpenSettings);
             }
+            // Числовые клавиши для вкладок
+            KeyCode::Char('1') => self.dispatcher.dispatch(Action::ChangeTab(0)),
+            KeyCode::Char('2') => self.dispatcher.dispatch(Action::ChangeTab(1)),
+            KeyCode::Char('3') => self.dispatcher.dispatch(Action::ChangeTab(2)),
+            KeyCode::Char('4') => self.dispatcher.dispatch(Action::ChangeTab(3)),
+            KeyCode::Char('5') => self.dispatcher.dispatch(Action::ChangeTab(4)),
+            KeyCode::Char('6') => self.dispatcher.dispatch(Action::ChangeTab(5)),
+            // Навигация по страницам
+            KeyCode::PageDown => self.dispatcher.dispatch(Action::SelectPageDown),
+            KeyCode::PageUp => self.dispatcher.dispatch(Action::SelectPageUp),
+            KeyCode::Home => self.dispatcher.dispatch(Action::SelectFirst),
+            KeyCode::End => self.dispatcher.dispatch(Action::SelectLast),
             _ => {}
         }
         Ok(())
@@ -508,10 +521,11 @@ fn format_system_label(info: &SystemInfo) -> String {
         label.push_str(" Atomic");
     }
     if let Some(desktop) = info.desktop_environment.as_deref()
-        && !desktop.is_empty() {
-            label.push_str(" | ");
-            label.push_str(desktop);
-        }
+        && !desktop.is_empty()
+    {
+        label.push_str(" | ");
+        label.push_str(desktop);
+    }
     label
 }
 

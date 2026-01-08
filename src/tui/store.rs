@@ -109,13 +109,43 @@ impl Store {
                 }
             }
 
+            Action::SelectPageDown => {
+                let visible_count = self.state.visible_items_len();
+                if visible_count == 0 {
+                    self.state.selected_index = 0;
+                } else {
+                    let page_size = 10;
+                    self.state.selected_index =
+                        (self.state.selected_index + page_size).min(visible_count - 1);
+                }
+            }
+
+            Action::SelectPageUp => {
+                let page_size = 10;
+                self.state.selected_index = self.state.selected_index.saturating_sub(page_size);
+            }
+
+            Action::SelectFirst => {
+                self.state.selected_index = 0;
+            }
+
+            Action::SelectLast => {
+                let visible_count = self.state.visible_items_len();
+                if visible_count == 0 {
+                    self.state.selected_index = 0;
+                } else {
+                    self.state.selected_index = visible_count - 1;
+                }
+            }
+
             Action::ToggleSelection => {
                 if let Some(item_index) = self.state.selected_item_index()
                     && let Some(item) = self.state.items.get_mut(item_index)
-                        && item.can_clean {
-                            item.selected = !item.selected;
-                            self.state.update_selected_size();
-                        }
+                    && item.can_clean
+                {
+                    item.selected = !item.selected;
+                    self.state.update_selected_size();
+                }
             }
 
             Action::ToggleAllVisible => {
@@ -123,9 +153,10 @@ impl Store {
                 let mut selectable_indices = Vec::new();
                 for index in visible_indices {
                     if let Some(item) = self.state.items.get(index)
-                        && item.can_clean {
-                            selectable_indices.push(index);
-                        }
+                        && item.can_clean
+                    {
+                        selectable_indices.push(index);
+                    }
                 }
 
                 let should_select = selectable_indices
