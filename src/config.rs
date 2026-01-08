@@ -91,6 +91,9 @@ impl Config {
     }
 
     pub fn save(&self, path: &PathBuf) -> crate::error::Result<()> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
         let content = toml::to_string_pretty(self)?;
         std::fs::write(path, content)?;
         Ok(())
@@ -102,5 +105,13 @@ impl Config {
             .join(".config")
             .join("rcleaner")
             .join("config.toml")
+    }
+
+    pub fn current_profile(&self) -> &ProfileConfig {
+        if self.safety.level.to_lowercase() == "aggressive" {
+            &self.profiles.aggressive
+        } else {
+            &self.profiles.safe
+        }
     }
 }
