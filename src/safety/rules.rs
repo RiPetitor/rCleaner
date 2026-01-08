@@ -17,12 +17,19 @@ pub struct SafetyRule {
     pub rule_type: SafetyRuleType,
 }
 
+/// Тип правила безопасности, определяющий категорию защиты.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)]
 pub enum SafetyRuleType {
+    /// Защита системных пакетов и библиотек
     ProtectSystemPackages,
+    /// Защита ядра и модулей
     ProtectKernel,
+    /// Защита загрузчика
     ProtectBootloader,
+    /// Защита домашнего каталога пользователя
     ProtectUserHome,
+    /// Защита активных приложений
     ProtectActiveApplications,
 }
 
@@ -148,13 +155,13 @@ impl SafetyRules {
 
     pub fn check_item_reason(&self, item: &CleanupItem) -> Option<String> {
         if let Some(ref path) = item.path {
-            if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
-                if path.starts_with(&runtime_dir) {
-                    return Some(format_rule_reason(
-                        SafetyRuleType::ProtectActiveApplications,
-                        "Защита активных приложений",
-                    ));
-                }
+            if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR")
+                && path.starts_with(&runtime_dir)
+            {
+                return Some(format_rule_reason(
+                    SafetyRuleType::ProtectActiveApplications,
+                    "Защита активных приложений",
+                ));
             }
 
             for rule in DEFAULT_RULES.iter() {
@@ -182,10 +189,10 @@ impl SafetyRules {
     fn matches_rule(&self, path: &str, pattern: &str) -> bool {
         let expanded = normalize_pattern(pattern);
 
-        if has_glob(&expanded) {
-            if let Ok(re) = Regex::new(&glob_to_regex(&expanded)) {
-                return re.is_match(path);
-            }
+        if has_glob(&expanded)
+            && let Ok(re) = Regex::new(&glob_to_regex(&expanded))
+        {
+            return re.is_match(path);
         }
 
         if expanded.starts_with('/') {
@@ -201,13 +208,13 @@ fn normalize_pattern(pattern: &str) -> String {
 }
 
 fn expand_tilde(value: &str) -> String {
-    if value == "~" || value.starts_with("~/") {
-        if let Ok(home) = std::env::var("HOME") {
-            if value == "~" {
-                return home;
-            }
-            return format!("{home}{}", &value[1..]);
+    if (value == "~" || value.starts_with("~/"))
+        && let Ok(home) = std::env::var("HOME")
+    {
+        if value == "~" {
+            return home;
         }
+        return format!("{home}{}", &value[1..]);
     }
     value.to_string()
 }

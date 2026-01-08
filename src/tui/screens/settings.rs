@@ -7,6 +7,20 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, Paragraph};
 
+/// Параметры для отрисовки экрана настроек.
+pub struct SettingsScreenParams<'a> {
+    pub state: &'a State,
+    pub system_label: &'a str,
+    pub auto_confirm: bool,
+    pub config_path: &'a str,
+    pub safety_enabled: bool,
+    pub only_root_can_disable: bool,
+    pub whitelist: &'a [String],
+    pub blacklist: &'a [String],
+}
+
+/// Отрисовывает экран настроек.
+#[allow(clippy::too_many_arguments)]
 pub fn render_settings_screen(
     frame: &mut ratatui::Frame,
     area: ratatui::layout::Rect,
