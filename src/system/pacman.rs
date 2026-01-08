@@ -3,6 +3,12 @@ use crate::system::package_manager::{PackageManager, command_failed, run_command
 
 pub struct PacmanManager;
 
+impl Default for PacmanManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PacmanManager {
     pub fn new() -> Self {
         Self
@@ -96,15 +102,14 @@ fn split_lines(output: &str) -> Vec<String> {
 fn parse_pacman_required_by(output: &str) -> Vec<String> {
     for line in output.lines() {
         let line = line.trim();
-        if line.starts_with("Required By") {
-            if let Some((_, value)) = line.split_once(':') {
+        if line.starts_with("Required By")
+            && let Some((_, value)) = line.split_once(':') {
                 let value = value.trim();
                 if value == "None" || value.is_empty() {
                     return Vec::new();
                 }
                 return value.split_whitespace().map(String::from).collect();
             }
-        }
     }
     Vec::new()
 }

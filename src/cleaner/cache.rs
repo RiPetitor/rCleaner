@@ -7,6 +7,12 @@ use walkdir::WalkDir;
 
 pub struct CacheCleaner;
 
+impl Default for CacheCleaner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CacheCleaner {
     pub fn new() -> Self {
         Self {}
@@ -24,11 +30,10 @@ impl CacheCleaner {
         let mut total_size = 0u64;
 
         for entry in WalkDir::new(path).into_iter().flatten() {
-            if let Ok(metadata) = entry.metadata() {
-                if metadata.is_file() {
+            if let Ok(metadata) = entry.metadata()
+                && metadata.is_file() {
                     total_size += metadata.len();
                 }
-            }
         }
 
         Ok(total_size)
@@ -59,8 +64,8 @@ impl Cleaner for CacheCleaner {
         ];
 
         for (label, cache_dir) in &cache_dirs {
-            if let Ok(size) = self.calculate_directory_size(cache_dir) {
-                if size > 0 {
+            if let Ok(size) = self.calculate_directory_size(cache_dir)
+                && size > 0 {
                     items.push(CleanupItem {
                         id: cache_dir.clone(),
                         name: label.to_string(),
@@ -75,7 +80,6 @@ impl Cleaner for CacheCleaner {
                         dependencies: Vec::new(),
                     });
                 }
-            }
         }
 
         let flatpak_root = format!("{}/.var/app", home);
@@ -84,8 +88,8 @@ impl Cleaner for CacheCleaner {
                 let app_path = entry.path();
                 let app_name = entry.file_name().to_string_lossy().trim().to_string();
                 let cache_path = app_path.join("cache");
-                if let Ok(size) = self.calculate_directory_size_path(&cache_path) {
-                    if size > 0 {
+                if let Ok(size) = self.calculate_directory_size_path(&cache_path)
+                    && size > 0 {
                         items.push(CleanupItem {
                             id: cache_path.to_string_lossy().to_string(),
                             name: format!("Flatpak cache: {}", app_name),
@@ -103,7 +107,6 @@ impl Cleaner for CacheCleaner {
                             dependencies: Vec::new(),
                         });
                     }
-                }
             }
         }
 

@@ -7,6 +7,12 @@ use std::collections::HashSet;
 
 pub struct OldKernelsCleaner;
 
+impl Default for OldKernelsCleaner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OldKernelsCleaner {
     pub fn new() -> Self {
         Self {}
@@ -76,11 +82,10 @@ impl Cleaner for OldKernelsCleaner {
 
 fn current_kernel_version() -> String {
     let output = std::process::Command::new("uname").arg("-r").output();
-    if let Ok(output) = output {
-        if output.status.success() {
+    if let Ok(output) = output
+        && output.status.success() {
             return String::from_utf8_lossy(&output.stdout).trim().to_string();
         }
-    }
     String::new()
 }
 
@@ -101,7 +106,7 @@ fn scan_rpm_kernels(current: &str, seen: &mut HashSet<String>) -> Result<Vec<Cle
     let mut items = Vec::new();
     for line in stdout.lines() {
         let pkg = line.trim();
-        if pkg.is_empty() || (current.len() > 0 && pkg.contains(current)) {
+        if pkg.is_empty() || (!current.is_empty() && pkg.contains(current)) {
             continue;
         }
         if !seen.insert(pkg.to_string()) {

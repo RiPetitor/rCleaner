@@ -7,6 +7,12 @@ pub struct Store {
 
 const TAB_COUNT: usize = 6;
 
+impl Default for Store {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Store {
     pub fn new() -> Self {
         Self {
@@ -104,25 +110,22 @@ impl Store {
             }
 
             Action::ToggleSelection => {
-                if let Some(item_index) = self.state.selected_item_index() {
-                    if let Some(item) = self.state.items.get_mut(item_index) {
-                        if item.can_clean {
+                if let Some(item_index) = self.state.selected_item_index()
+                    && let Some(item) = self.state.items.get_mut(item_index)
+                        && item.can_clean {
                             item.selected = !item.selected;
                             self.state.update_selected_size();
                         }
-                    }
-                }
             }
 
             Action::ToggleAllVisible => {
                 let visible_indices = self.state.visible_item_indices();
                 let mut selectable_indices = Vec::new();
                 for index in visible_indices {
-                    if let Some(item) = self.state.items.get(index) {
-                        if item.can_clean {
+                    if let Some(item) = self.state.items.get(index)
+                        && item.can_clean {
                             selectable_indices.push(index);
                         }
-                    }
                 }
 
                 let should_select = selectable_indices

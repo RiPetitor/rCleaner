@@ -3,6 +3,12 @@ use crate::system::package_manager::{PackageManager, command_failed, run_command
 
 pub struct AptManager;
 
+impl Default for AptManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AptManager {
     pub fn new() -> Self {
         Self

@@ -11,11 +11,10 @@ pub fn can_clean_path(path: &str) -> bool {
         return true;
     }
 
-    if let Ok(home) = std::env::var("HOME") {
-        if path.starts_with(&home) {
+    if let Ok(home) = std::env::var("HOME")
+        && path.starts_with(&home) {
             return true;
         }
-    }
 
     false
 }

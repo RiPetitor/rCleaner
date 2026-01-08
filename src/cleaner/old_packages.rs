@@ -6,6 +6,12 @@ use crate::system::{apt, dnf, pacman, rpm};
 
 pub struct OldPackagesCleaner;
 
+impl Default for OldPackagesCleaner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OldPackagesCleaner {
     pub fn new() -> Self {
         Self {}
@@ -98,11 +104,10 @@ fn scan_apt_autoremove() -> Result<Vec<CleanupItem>> {
     let mut items = Vec::new();
     for line in stdout.lines() {
         let line = line.trim();
-        if let Some(rest) = line.strip_prefix("Remv ") {
-            if let Some(pkg) = rest.split_whitespace().next() {
+        if let Some(rest) = line.strip_prefix("Remv ")
+            && let Some(pkg) = rest.split_whitespace().next() {
                 items.push(make_package_item(pkg, "APT autoremove candidate", "apt"));
             }
-        }
     }
 
     Ok(items)

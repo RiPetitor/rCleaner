@@ -4,6 +4,12 @@ use crate::system::rpm::is_no_requires_message;
 
 pub struct DnfManager;
 
+impl Default for DnfManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DnfManager {
     pub fn new() -> Self {
         Self

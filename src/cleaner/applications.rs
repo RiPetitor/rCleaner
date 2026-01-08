@@ -9,6 +9,12 @@ use std::path::Path;
 
 pub struct ApplicationsCleaner;
 
+impl Default for ApplicationsCleaner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ApplicationsCleaner {
     pub fn new() -> Self {
         Self {}
@@ -27,8 +33,8 @@ impl Cleaner for ApplicationsCleaner {
     fn scan(&self) -> Result<Vec<CleanupItem>> {
         let mut items = Vec::new();
 
-        if flatpak::is_flatpak_available() {
-            if let Ok(apps) = flatpak::list_installed_with_sizes() {
+        if flatpak::is_flatpak_available()
+            && let Ok(apps) = flatpak::list_installed_with_sizes() {
                 for (app, size) in apps {
                     if app.trim().is_empty() {
                         continue;
@@ -48,10 +54,9 @@ impl Cleaner for ApplicationsCleaner {
                     });
                 }
             }
-        }
 
-        if snap::is_snap_available() {
-            if let Ok(apps) = snap::list_installed_with_sizes() {
+        if snap::is_snap_available()
+            && let Ok(apps) = snap::list_installed_with_sizes() {
                 for (app, size) in apps {
                     if app.trim().is_empty() || app == "Name" {
                         continue;
@@ -71,7 +76,6 @@ impl Cleaner for ApplicationsCleaner {
                     });
                 }
             }
-        }
 
         items.extend(list_container_images("docker")?);
         items.extend(list_container_images("podman")?);
@@ -124,13 +128,13 @@ impl Cleaner for ApplicationsCleaner {
 
         if !docker_images.is_empty() {
             remove_container_images("docker", &docker_images, dry_run)
-                .map_err(|err| RcleanerError::Command(err))?;
+                .map_err(RcleanerError::Command)?;
             result.cleaned_items += docker_images.len();
         }
 
         if !podman_images.is_empty() {
             remove_container_images("podman", &podman_images, dry_run)
-                .map_err(|err| RcleanerError::Command(err))?;
+                .map_err(RcleanerError::Command)?;
             result.cleaned_items += podman_images.len();
         }
 

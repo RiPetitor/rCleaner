@@ -7,6 +7,12 @@ use walkdir::WalkDir;
 
 pub struct TempFilesCleaner;
 
+impl Default for TempFilesCleaner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TempFilesCleaner {
     pub fn new() -> Self {
         Self {}
@@ -36,8 +42,8 @@ impl Cleaner for TempFilesCleaner {
         ];
 
         for (label, path) in temp_paths {
-            if let Ok(size) = self.calculate_directory_size(&path) {
-                if size > 0 {
+            if let Ok(size) = self.calculate_directory_size(&path)
+                && size > 0 {
                     items.push(CleanupItem {
                         id: path.to_string_lossy().to_string(),
                         name: label.to_string(),
@@ -52,7 +58,6 @@ impl Cleaner for TempFilesCleaner {
                         dependencies: Vec::new(),
                     });
                 }
-            }
         }
 
         Ok(items)
@@ -124,11 +129,10 @@ fn calculate_directory_size(path: &Path) -> Result<u64> {
 
     let mut total_size = 0u64;
     for entry in WalkDir::new(path).into_iter().flatten() {
-        if let Ok(metadata) = entry.metadata() {
-            if metadata.is_file() {
+        if let Ok(metadata) = entry.metadata()
+            && metadata.is_file() {
                 total_size += metadata.len();
             }
-        }
     }
     Ok(total_size)
 }

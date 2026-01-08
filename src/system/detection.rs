@@ -208,19 +208,19 @@ fn detect_desktop_type(
         return DesktopType::PacmanArch;
     }
 
-    if id_like_values.iter().any(|value| *value == "fedora") {
+    if id_like_values.contains(&"fedora") {
         return DesktopType::RpmFedora;
     }
-    if id_like_values.iter().any(|value| *value == "rhel") {
+    if id_like_values.contains(&"rhel") {
         return DesktopType::RpmRHEL;
     }
-    if id_like_values.iter().any(|value| *value == "ubuntu") {
+    if id_like_values.contains(&"ubuntu") {
         return DesktopType::AptUbuntu;
     }
-    if id_like_values.iter().any(|value| *value == "debian") {
+    if id_like_values.contains(&"debian") {
         return DesktopType::AptDebian;
     }
-    if id_like_values.iter().any(|value| *value == "arch") {
+    if id_like_values.contains(&"arch") {
         return DesktopType::PacmanArch;
     }
 

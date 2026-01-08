@@ -4,6 +4,12 @@ use std::path::Path;
 
 pub struct RpmOstreeManager;
 
+impl Default for RpmOstreeManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RpmOstreeManager {
     pub fn new() -> Self {
         Self
@@ -24,15 +30,12 @@ impl PackageManager for RpmOstreeManager {
     }
 
     fn list_installed(&self) -> Result<Vec<String>> {
-        if let Ok(output) = run_command("rpm-ostree", &["status", "--json"]) {
-            if output.status.success() {
-                if let Ok(packages) = parse_rpm_ostree_json(&output.stdout) {
-                    if !packages.is_empty() {
+        if let Ok(output) = run_command("rpm-ostree", &["status", "--json"])
+            && output.status.success()
+                && let Ok(packages) = parse_rpm_ostree_json(&output.stdout)
+                    && !packages.is_empty() {
                         return Ok(packages);
                     }
-                }
-            }
-        }
 
         let output = run_command("rpm-ostree", &["db", "list"])?;
         if !output.status.success() {
@@ -95,8 +98,8 @@ fn parse_rpm_ostree_json(content: &str) -> Result<Vec<String>> {
         }
     }
 
-    if packages.is_empty() {
-        if let Some(list) = value
+    if packages.is_empty()
+        && let Some(list) = value
             .pointer("/deployments/0/packages")
             .and_then(|v| v.as_array())
         {
@@ -106,7 +109,6 @@ fn parse_rpm_ostree_json(content: &str) -> Result<Vec<String>> {
                 }
             }
         }
-    }
 
     Ok(packages)
 }

@@ -7,6 +7,12 @@ use walkdir::WalkDir;
 
 pub struct LogsCleaner;
 
+impl Default for LogsCleaner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LogsCleaner {
     pub fn new() -> Self {
         Self {}
@@ -26,8 +32,8 @@ impl Cleaner for LogsCleaner {
         let mut items = Vec::new();
 
         let log_path = PathBuf::from("/var/log");
-        if let Ok(size) = calculate_directory_size(&log_path) {
-            if size > 0 {
+        if let Ok(size) = calculate_directory_size(&log_path)
+            && size > 0 {
                 items.push(CleanupItem {
                     id: log_path.to_string_lossy().to_string(),
                     name: "System logs".to_string(),
@@ -42,7 +48,6 @@ impl Cleaner for LogsCleaner {
                     dependencies: Vec::new(),
                 });
             }
-        }
 
         if let Some((size, description)) = journal_usage() {
             items.push(CleanupItem {
@@ -137,11 +142,10 @@ fn calculate_directory_size(path: &Path) -> Result<u64> {
 
     let mut total_size = 0u64;
     for entry in WalkDir::new(path).into_iter().flatten() {
-        if let Ok(metadata) = entry.metadata() {
-            if metadata.is_file() {
+        if let Ok(metadata) = entry.metadata()
+            && metadata.is_file() {
                 total_size += metadata.len();
             }
-        }
     }
     Ok(total_size)
 }
@@ -163,17 +167,15 @@ fn parse_journal_size(output: &str) -> Option<u64> {
     for token in output.split_whitespace() {
         if token.chars().any(|c| c.is_ascii_digit())
             && token.chars().any(|c| c.is_ascii_alphabetic())
-        {
-            if let Some(size) = parse_size_to_bytes(token) {
+            && let Some(size) = parse_size_to_bytes(token) {
                 return Some(size);
             }
-        }
     }
     None
 }
 
 fn parse_size_to_bytes(value: &str) -> Option<u64> {
-    let trimmed = value.trim_end_matches(|c: char| c == '.' || c == ',');
+    let trimmed = value.trim_end_matches(['.', ',']);
     let mut number = String::new();
     let mut unit = String::new();
     for ch in trimmed.chars() {

@@ -5,6 +5,12 @@ use std::path::Path;
 
 pub struct SnapManager;
 
+impl Default for SnapManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SnapManager {
     pub fn new() -> Self {
         Self

@@ -5,6 +5,12 @@ pub struct Dispatcher {
     store: Store,
 }
 
+impl Default for Dispatcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Dispatcher {
     pub fn new() -> Self {
         Self {

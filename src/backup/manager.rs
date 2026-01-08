@@ -45,10 +45,7 @@ impl BackupManager {
     }
 
     pub fn from_config() -> Result<Self> {
-        let config = match Config::load(&Config::default_path()) {
-            Ok(config) => config,
-            Err(_) => Config::default(),
-        };
+        let config = Config::load(&Config::default_path()).unwrap_or_default();
 
         let profile = if config.safety.level.to_lowercase() == "aggressive" {
             &config.profiles.aggressive
@@ -126,11 +123,10 @@ impl BackupManager {
                 continue;
             }
             let metadata_path = entry.path().join("metadata.json");
-            if let Ok(content) = fs::read_to_string(metadata_path) {
-                if let Ok(backup) = serde_json::from_str::<Backup>(&content) {
+            if let Ok(content) = fs::read_to_string(metadata_path)
+                && let Ok(backup) = serde_json::from_str::<Backup>(&content) {
                     backups.push(backup);
                 }
-            }
         }
 
         Ok(backups)
@@ -255,11 +251,10 @@ fn calculate_path_size(path: &Path) -> Result<u64> {
 
     let mut total = 0u64;
     for entry in WalkDir::new(path).into_iter().flatten() {
-        if let Ok(metadata) = entry.metadata() {
-            if metadata.is_file() {
+        if let Ok(metadata) = entry.metadata()
+            && metadata.is_file() {
                 total += metadata.len();
             }
-        }
     }
     Ok(total)
 }

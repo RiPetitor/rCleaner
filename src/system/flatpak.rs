@@ -5,6 +5,12 @@ use std::path::Path;
 
 pub struct FlatpakManager;
 
+impl Default for FlatpakManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FlatpakManager {
     pub fn new() -> Self {
         Self
@@ -69,22 +75,19 @@ pub fn list_installed() -> Result<Vec<String>> {
 pub fn list_installed_with_sizes() -> Result<Vec<(String, u64)>> {
     let columns = ["application,installed-size", "application,size"];
     for column in columns {
-        if let Ok(items) = list_with_columns(column) {
-            if !items.is_empty() {
+        if let Ok(items) = list_with_columns(column)
+            && !items.is_empty() {
                 return Ok(items);
             }
-        }
     }
 
     Ok(list_installed()?.into_iter().map(|app| (app, 0)).collect())
 }
 
 fn list_with_columns(columns: &str) -> Result<Vec<(String, u64)>> {
-    let args = vec![
-        "list".to_string(),
+    let args = ["list".to_string(),
         "--app".to_string(),
-        format!("--columns={columns}"),
-    ];
+        format!("--columns={columns}")];
     let args_ref = args.iter().map(String::as_str).collect::<Vec<_>>();
     let output = run_command("flatpak", &args_ref)?;
     if !output.status.success() {

@@ -3,6 +3,12 @@ use crate::system::package_manager::{PackageManager, command_failed, run_command
 
 pub struct RpmManager;
 
+impl Default for RpmManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RpmManager {
     pub fn new() -> Self {
         Self

@@ -29,6 +29,12 @@ pub struct App {
     scan_in_progress: bool,
 }
 
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl App {
     pub fn new() -> Self {
         let mut dispatcher = Dispatcher::new();
@@ -68,13 +74,11 @@ impl App {
 
             terminal.draw(|frame| self.draw(frame, &state))?;
 
-            if event::poll(Duration::from_millis(150))? {
-                if let event::Event::Key(key) = event::read()? {
-                    if key.kind == KeyEventKind::Press {
+            if event::poll(Duration::from_millis(150))?
+                && let event::Event::Key(key) = event::read()?
+                    && key.kind == KeyEventKind::Press {
                         self.handle_key_event(key, terminal)?;
                     }
-                }
-            }
         }
 
         Ok(())
@@ -484,7 +488,7 @@ impl App {
 
 fn parse_rules_input(input: &str) -> Vec<String> {
     input
-        .split(|ch| ch == ',' || ch == '\n')
+        .split([',', '\n'])
         .map(|entry| entry.trim())
         .filter(|entry| !entry.is_empty())
         .map(String::from)
@@ -503,12 +507,11 @@ fn format_system_label(info: &SystemInfo) -> String {
     if matches!(info.system_type, SystemType::AtomicRpmOstree) {
         label.push_str(" Atomic");
     }
-    if let Some(desktop) = info.desktop_environment.as_deref() {
-        if !desktop.is_empty() {
+    if let Some(desktop) = info.desktop_environment.as_deref()
+        && !desktop.is_empty() {
             label.push_str(" | ");
             label.push_str(desktop);
         }
-    }
     label
 }
 
