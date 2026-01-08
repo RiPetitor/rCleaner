@@ -31,6 +31,8 @@ impl Store {
                 self.state.status_message = None;
                 self.state.search_query.clear();
                 self.state.search_active = false;
+                self.state.settings_edit = None;
+                self.state.settings_input.clear();
             }
 
             Action::Exit => {
@@ -161,9 +163,28 @@ impl Store {
                 self.state.selected_index = 0;
             }
 
+            Action::BeginSettingsEdit(target, input) => {
+                self.state.settings_edit = Some(target);
+                self.state.settings_input = input;
+            }
+
+            Action::EndSettingsEdit => {
+                self.state.settings_edit = None;
+                self.state.settings_input.clear();
+            }
+
+            Action::AppendSettingsInput(ch) => {
+                self.state.settings_input.push(ch);
+            }
+
+            Action::BackspaceSettingsInput => {
+                self.state.settings_input.pop();
+            }
+
             Action::OpenConfirm => {
                 self.state.active_screen = crate::tui::action::Screen::Confirm;
                 self.state.search_active = false;
+                self.state.settings_edit = None;
             }
 
             Action::OpenSettings => {
@@ -177,6 +198,7 @@ impl Store {
                 self.state.cleanup_progress = 0.0;
                 self.state.cleanup_step = None;
                 self.state.search_active = false;
+                self.state.settings_edit = None;
             }
 
             Action::StartCleanup => {
@@ -185,6 +207,7 @@ impl Store {
                 self.state.cleanup_progress = 0.0;
                 self.state.cleanup_step = Some("Preparing cleanup...".to_string());
                 self.state.search_active = false;
+                self.state.settings_edit = None;
             }
 
             Action::CancelCleanup => {

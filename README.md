@@ -43,6 +43,9 @@ message instead of crashing.
 | Space | Toggle selection |
 | A | Select all visible |
 | S | Open settings |
+| E (Settings) | Toggle safety on/off |
+| O (Settings) | Toggle root-only disable |
+| W / B (Settings) | Edit whitelist / blacklist |
 | / | Search by name |
 | Enter | Start cleanup |
 | Y / N / Esc | Confirm / cancel cleanup |
@@ -128,6 +131,9 @@ cargo run
 | Space | Выбор элемента |
 | A | Выбрать всё видимое |
 | S | Открыть настройки |
+| E (Настройки) | Включить/выключить безопасность |
+| O (Настройки) | Переключить запрет отключения без root |
+| W / B (Настройки) | Редактировать whitelist / blacklist |
 | / | Поиск по имени |
 | Enter | Запуск очистки |
 | Y / N / Esc | Подтвердить / отменить |

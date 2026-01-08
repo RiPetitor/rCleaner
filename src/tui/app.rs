@@ -3,11 +3,12 @@ use crate::config::Config;
 use crate::error::{RcleanerError, Result};
 use crate::models::CleanupItem;
 use crate::system::detection::{SystemInfo, SystemType, detect_system};
-use crate::tui::action::{Action, SafetyLevel, Screen};
+use crate::tui::action::{Action, SafetyLevel, Screen, SettingsEdit};
 use crate::tui::dispatcher::Dispatcher;
 use crate::tui::screens::{confirm, main, progress, results, settings};
 use crate::tui::state::State;
 use crate::utils::cache;
+use crate::utils::command;
 use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
 use ratatui::widgets::Clear;
 use ratatui::{DefaultTerminal, Frame};
@@ -95,6 +96,10 @@ impl App {
                 &self.system_label,
                 self.config.current_profile().auto_confirm,
                 &self.config_path.to_string_lossy(),
+                self.config.safety.enabled,
+                self.config.safety.only_root_can_disable,
+                &self.config.rules.whitelist.paths,
+                &self.config.rules.blacklist.patterns,
             ),
             Screen::Progress => {
                 progress::render_progress_screen(frame, area, state, &self.system_label)
@@ -217,13 +222,47 @@ impl App {
     }
 
     fn handle_settings_keys(&mut self, key: event::KeyEvent) {
+        let state = self.dispatcher.store().state().clone();
+        if let Some(edit_target) = state.settings_edit {
+            match key.code {
+                KeyCode::Enter => {
+                    self.apply_settings_edit(edit_target, &state.settings_input);
+                }
+                KeyCode::Esc => {
+                    self.dispatcher.dispatch(Action::EndSettingsEdit);
+                }
+                KeyCode::Backspace => {
+                    self.dispatcher.dispatch(Action::BackspaceSettingsInput);
+                }
+                KeyCode::Char(ch) => {
+                    if !ch.is_control() {
+                        self.dispatcher.dispatch(Action::AppendSettingsInput(ch));
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+
         match key.code {
             KeyCode::Left | KeyCode::Right => {
-                let next = match self.dispatcher.store().state().safety_level {
+                let next = match state.safety_level {
                     SafetyLevel::Safe => SafetyLevel::Aggressive,
                     SafetyLevel::Aggressive => SafetyLevel::Safe,
                 };
                 self.apply_safety_level(next);
+            }
+            KeyCode::Char('e') | KeyCode::Char('E') => {
+                self.toggle_safety_enabled();
+            }
+            KeyCode::Char('o') | KeyCode::Char('O') => {
+                self.toggle_root_only_disable();
+            }
+            KeyCode::Char('w') | KeyCode::Char('W') => {
+                self.begin_settings_edit(SettingsEdit::Whitelist);
+            }
+            KeyCode::Char('b') | KeyCode::Char('B') => {
+                self.begin_settings_edit(SettingsEdit::Blacklist);
             }
             KeyCode::Enter | KeyCode::Esc => {
                 self.dispatcher.dispatch(Action::BackToMain);
@@ -362,14 +401,71 @@ impl App {
             SafetyLevel::Aggressive => "aggressive".to_string(),
         };
 
+        self.save_config("Config saved.");
+    }
+
+    fn begin_settings_edit(&mut self, target: SettingsEdit) {
+        let input = match target {
+            SettingsEdit::Whitelist => self.config.rules.whitelist.paths.join(", "),
+            SettingsEdit::Blacklist => self.config.rules.blacklist.patterns.join(", "),
+        };
+        self.dispatcher
+            .dispatch(Action::BeginSettingsEdit(target, input));
+    }
+
+    fn apply_settings_edit(&mut self, target: SettingsEdit, input: &str) {
+        let values = parse_rules_input(input);
+        match target {
+            SettingsEdit::Whitelist => self.config.rules.whitelist.paths = values,
+            SettingsEdit::Blacklist => self.config.rules.blacklist.patterns = values,
+        }
+
+        if self.save_config("Rules updated.") {
+            self.request_scan("Rules updated");
+        }
+        self.dispatcher.dispatch(Action::EndSettingsEdit);
+    }
+
+    fn toggle_safety_enabled(&mut self) {
+        if self.config.safety.enabled
+            && self.config.safety.only_root_can_disable
+            && !command::is_root()
+        {
+            self.dispatcher.dispatch(Action::SetStatus(Some(
+                "Root required to disable safety.".to_string(),
+            )));
+            return;
+        }
+
+        self.config.safety.enabled = !self.config.safety.enabled;
+        if self.save_config("Safety updated.") {
+            self.request_scan("Safety updated");
+        }
+    }
+
+    fn toggle_root_only_disable(&mut self) {
+        if !command::is_root() {
+            self.dispatcher.dispatch(Action::SetStatus(Some(
+                "Root required to change this setting.".to_string(),
+            )));
+            return;
+        }
+
+        self.config.safety.only_root_can_disable = !self.config.safety.only_root_can_disable;
+        self.save_config("Safety policy updated.");
+    }
+
+    fn save_config(&mut self, message: &str) -> bool {
         if let Err(err) = self.config.save(&self.config_path) {
             log::warn!("Failed to save config: {}", err);
             self.dispatcher.dispatch(Action::SetStatus(Some(
                 "Failed to save config.".to_string(),
             )));
+            false
         } else {
             self.dispatcher
-                .dispatch(Action::SetStatus(Some("Config saved.".to_string())));
+                .dispatch(Action::SetStatus(Some(message.to_string())));
+            true
         }
     }
 
@@ -384,6 +480,15 @@ impl App {
             }
         }
     }
+}
+
+fn parse_rules_input(input: &str) -> Vec<String> {
+    input
+        .split(|ch| ch == ',' || ch == '\n')
+        .map(|entry| entry.trim())
+        .filter(|entry| !entry.is_empty())
+        .map(String::from)
+        .collect()
 }
 
 fn build_system_label() -> String {

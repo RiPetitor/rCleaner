@@ -10,6 +10,12 @@ pub enum Screen {
     Results,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SettingsEdit {
+    Whitelist,
+    Blacklist,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Action {
     Init,
@@ -32,6 +38,10 @@ pub enum Action {
     ClearSearch,
     AppendSearch(char),
     BackspaceSearch,
+    BeginSettingsEdit(SettingsEdit, String),
+    EndSettingsEdit,
+    AppendSettingsInput(char),
+    BackspaceSettingsInput,
 
     OpenConfirm,
     OpenSettings,

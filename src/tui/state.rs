@@ -1,5 +1,5 @@
 use crate::models::{CleanupCategory, CleanupItem, CleanupResult};
-use crate::tui::action::{SafetyLevel, Screen};
+use crate::tui::action::{SafetyLevel, Screen, SettingsEdit};
 
 #[derive(Debug, Clone)]
 pub struct State {
@@ -17,6 +17,8 @@ pub struct State {
     pub status_message: Option<String>,
     pub search_query: String,
     pub search_active: bool,
+    pub settings_edit: Option<SettingsEdit>,
+    pub settings_input: String,
     pub should_exit: bool,
 }
 
@@ -37,6 +39,8 @@ impl Default for State {
             status_message: None,
             search_query: String::new(),
             search_active: false,
+            settings_edit: None,
+            settings_input: String::new(),
             should_exit: false,
         }
     }
