@@ -33,7 +33,9 @@ impl PackageManager for RpmManager {
     fn check_dependencies(&self, package: &str) -> Result<Vec<String>> {
         let output = run_command("rpm", &["-q", "--whatrequires", package])?;
         if !output.status.success() {
-            if output.stdout.trim().is_empty() && is_no_requires_message(&output.stderr, package) {
+            if is_no_requires_message(&output.stderr, package)
+                || is_no_requires_message(&output.stdout, package)
+            {
                 return Ok(Vec::new());
             }
             return Err(command_failed("rpm", &output));
