@@ -9,6 +9,7 @@ use crate::tui::screens::{confirm, main, progress, results, settings};
 use crate::tui::state::State;
 use crate::utils::cache;
 use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
+use ratatui::widgets::Clear;
 use ratatui::{DefaultTerminal, Frame};
 use std::path::PathBuf;
 use std::sync::mpsc;
@@ -80,6 +81,7 @@ impl App {
 
     fn draw(&self, frame: &mut Frame, state: &State) {
         let area = frame.area();
+        frame.render_widget(Clear, area);
 
         match state.active_screen {
             Screen::Main => main::render_main_screen(frame, area, state, &self.system_label),
