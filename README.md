@@ -41,13 +41,16 @@ message instead of crashing.
 | Tab / Shift+Tab | Next / previous tab |
 | Up / Down | Navigate items |
 | Space | Toggle selection |
+| A | Select all visible |
+| S | Open settings |
 | Enter | Start cleanup |
+| Y / N / Esc | Confirm / cancel cleanup |
 
 ### Configuration
 Config file path:
 `~/.config/rcleaner/config.toml`
 
-If the file is missing, defaults are used (the file is not auto-created yet).
+If the file is missing, rCleaner creates it with defaults on first launch.
 
 Example:
 ```toml
@@ -122,13 +125,16 @@ cargo run
 | Tab / Shift+Tab | Следующая / предыдущая вкладка |
 | Up / Down | Навигация по списку |
 | Space | Выбор элемента |
+| A | Выбрать всё видимое |
+| S | Открыть настройки |
 | Enter | Запуск очистки |
+| Y / N / Esc | Подтвердить / отменить |
 
 ### Конфигурация
 Путь к конфигу:
 `~/.config/rcleaner/config.toml`
 
-Если файла нет, используются значения по умолчанию (автосоздание пока не реализовано).
+Если файла нет, rCleaner создаст его с настройками по умолчанию при первом запуске.
 
 Пример:
 ```toml
