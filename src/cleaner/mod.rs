@@ -1,3 +1,13 @@
+//! Модули очистки системы.
+//!
+//! Каждый модуль отвечает за свою категорию:
+//! - [`cache`] - кэш браузеров и приложений
+//! - [`applications`] - Flatpak и Snap приложения
+//! - [`temp_files`] - временные файлы
+//! - [`logs`] - журналы и логи
+//! - [`old_packages`] - старые пакеты
+//! - [`old_kernels`] - старые ядра
+
 pub mod applications;
 pub mod base;
 pub mod cache;
@@ -12,6 +22,9 @@ use crate::error::Result;
 use crate::models::{CleanupCategory, CleanupItem, CleanupResult};
 use crate::safety::SafetyChecker;
 
+/// Сканирует все категории и возвращает список элементов для очистки.
+///
+/// Применяет правила безопасности к каждому элементу.
 pub fn scan_all() -> Result<Vec<CleanupItem>> {
     let cleaners: Vec<Box<dyn Cleaner>> = vec![
         Box::new(cache::CacheCleaner::new()),
@@ -53,10 +66,23 @@ pub fn scan_all() -> Result<Vec<CleanupItem>> {
     Ok(items)
 }
 
+/// Очищает выбранные элементы.
+///
+/// # Arguments
+///
+/// * `items` - элементы для очистки (только с `selected = true`)
+/// * `dry_run` - если `true`, только симуляция
 pub fn clean_selected(items: &[CleanupItem], dry_run: bool) -> Result<CleanupResult> {
     clean_selected_with_progress(items, dry_run, |_progress, _label| {})
 }
 
+/// Очищает выбранные элементы с отслеживанием прогресса.
+///
+/// # Arguments
+///
+/// * `items` - элементы для очистки
+/// * `dry_run` - если `true`, только симуляция
+/// * `on_progress` - callback для отслеживания прогресса (0.0..1.0, название шага)
 pub fn clean_selected_with_progress<F>(
     items: &[CleanupItem],
     dry_run: bool,
