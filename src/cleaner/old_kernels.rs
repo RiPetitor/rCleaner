@@ -1,3 +1,4 @@
+use crate::backup::BackupManager;
 use crate::cleaner::base::Cleaner;
 use crate::error::Result;
 use crate::models::{CleanupCategory, CleanupItem, CleanupResult, CleanupSource};
@@ -37,6 +38,11 @@ impl Cleaner for OldKernelsCleaner {
         let mut result = CleanupResult::default();
         let mut rpm_packages = Vec::new();
         let mut apt_packages = Vec::new();
+
+        if !dry_run {
+            let manager = BackupManager::from_config()?;
+            let _backup = manager.create_backup(items)?;
+        }
 
         for item in items {
             if !self.can_clean(item) {

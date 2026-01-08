@@ -1,3 +1,4 @@
+use crate::backup::BackupManager;
 use crate::cleaner::base::Cleaner;
 use crate::error::{RcleanerError, Result};
 use crate::models::{CleanupCategory, CleanupItem, CleanupResult, CleanupSource};
@@ -81,6 +82,11 @@ impl Cleaner for ApplicationsCleaner {
         let mut snap_apps = Vec::new();
         let mut docker_images = Vec::new();
         let mut podman_images = Vec::new();
+
+        if !dry_run {
+            let manager = BackupManager::from_config()?;
+            let _backup = manager.create_backup(items)?;
+        }
 
         for item in items {
             if !self.can_clean(item) {
