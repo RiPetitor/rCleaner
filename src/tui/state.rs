@@ -1,8 +1,9 @@
-use crate::models::{CleanupCategory, CleanupItem};
-use crate::tui::action::SafetyLevel;
+use crate::models::{CleanupCategory, CleanupItem, CleanupResult};
+use crate::tui::action::{SafetyLevel, Screen};
 
 #[derive(Debug, Clone)]
 pub struct State {
+    pub active_screen: Screen,
     pub current_tab: usize,
     pub selected_index: usize,
     pub items: Vec<CleanupItem>,
@@ -11,12 +12,16 @@ pub struct State {
     pub safety_level: SafetyLevel,
     pub cleanup_in_progress: bool,
     pub cleanup_progress: f64,
+    pub cleanup_step: Option<String>,
+    pub last_result: Option<CleanupResult>,
+    pub status_message: Option<String>,
     pub should_exit: bool,
 }
 
 impl Default for State {
     fn default() -> Self {
         Self {
+            active_screen: Screen::Main,
             current_tab: 0,
             selected_index: 0,
             items: Vec::new(),
@@ -25,6 +30,9 @@ impl Default for State {
             safety_level: SafetyLevel::Safe,
             cleanup_in_progress: false,
             cleanup_progress: 0.0,
+            cleanup_step: None,
+            last_result: None,
+            status_message: None,
             should_exit: false,
         }
     }
@@ -94,5 +102,17 @@ impl State {
             .filter(|item| item.selected)
             .map(|item| item.size)
             .sum();
+    }
+
+    pub fn selected_items(&self) -> Vec<CleanupItem> {
+        self.items
+            .iter()
+            .filter(|item| item.selected)
+            .cloned()
+            .collect()
+    }
+
+    pub fn selected_count(&self) -> usize {
+        self.items.iter().filter(|item| item.selected).count()
     }
 }
