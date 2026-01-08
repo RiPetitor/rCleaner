@@ -199,6 +199,61 @@ fn expand_tilde(value: &str) -> String {
     value.to_string()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{CleanupCategory, CleanupItem, CleanupSource};
+
+    fn item_with_path(path: &str) -> CleanupItem {
+        CleanupItem {
+            id: path.to_string(),
+            name: "test".to_string(),
+            path: Some(path.to_string()),
+            size: 0,
+            description: "test".to_string(),
+            category: CleanupCategory::Cache,
+            source: CleanupSource::FileSystem,
+            selected: false,
+            can_clean: true,
+            dependencies: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn test_default_rules_block_system_paths() {
+        let config = Config::default();
+        let rules = SafetyRules::from_config(&config);
+        let item = item_with_path("/usr/bin/rcleaner-test");
+        assert!(!rules.check_item(&item));
+    }
+
+    #[test]
+    fn test_whitelist_blocks_path() {
+        let mut config = Config::default();
+        config.rules.whitelist.paths = vec!["/tmp/rcleaner-protect".to_string()];
+        let rules = SafetyRules::from_config(&config);
+        let item = item_with_path("/tmp/rcleaner-protect/file");
+        assert!(!rules.check_item(&item));
+    }
+
+    #[test]
+    fn test_blacklist_blocks_pattern() {
+        let mut config = Config::default();
+        config.rules.blacklist.patterns = vec!["*.log".to_string()];
+        let rules = SafetyRules::from_config(&config);
+        let item = item_with_path("/tmp/rcleaner-test.log");
+        assert!(!rules.check_item(&item));
+    }
+
+    #[test]
+    fn test_safe_path_allowed() {
+        let config = Config::default();
+        let rules = SafetyRules::from_config(&config);
+        let item = item_with_path("/tmp/rcleaner-ok");
+        assert!(rules.check_item(&item));
+    }
+}
+
 fn has_glob(pattern: &str) -> bool {
     pattern.contains('*') || pattern.contains('?')
 }

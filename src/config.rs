@@ -115,3 +115,44 @@ impl Config {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_config_path() -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let mut path = std::env::temp_dir();
+        path.push(format!("rcleaner-config-{nanos}-{}", std::process::id()));
+        path.push("nested");
+        path.push("config.toml");
+        path
+    }
+
+    #[test]
+    fn test_save_and_load_config() {
+        let path = temp_config_path();
+        let mut config = Config::default();
+        config.safety.level = "aggressive".to_string();
+        config.profiles.aggressive.max_backup_size_gb = 3;
+
+        config.save(&path).unwrap();
+        assert!(path.exists());
+
+        let loaded = Config::load(&path).unwrap();
+        assert_eq!(loaded.safety.level, "aggressive");
+        assert_eq!(loaded.profiles.aggressive.max_backup_size_gb, 3);
+    }
+
+    #[test]
+    fn test_current_profile() {
+        let mut config = Config::default();
+        assert_eq!(config.current_profile().auto_confirm, false);
+        config.safety.level = "aggressive".to_string();
+        assert_eq!(config.current_profile().auto_confirm, true);
+    }
+}

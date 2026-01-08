@@ -145,3 +145,52 @@ impl Cleaner for CacheCleaner {
         Ok(result)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{CleanupCategory, CleanupItem, CleanupSource};
+    use std::io::Write;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn test_clean_dry_run_keeps_files() {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rcleaner-cache-test-{nanos}-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let file_path = dir.join("file.txt");
+        let mut file = std::fs::File::create(&file_path).unwrap();
+        writeln!(file, "test").unwrap();
+        let size = std::fs::metadata(&file_path).unwrap().len();
+
+        let item = CleanupItem {
+            id: "test".to_string(),
+            name: "Test cache".to_string(),
+            path: Some(dir.to_string_lossy().to_string()),
+            size,
+            description: "test".to_string(),
+            category: CleanupCategory::Cache,
+            source: CleanupSource::FileSystem,
+            selected: true,
+            can_clean: true,
+            dependencies: Vec::new(),
+        };
+
+        let cleaner = CacheCleaner::new();
+        let result = cleaner.clean(&[item], true).unwrap();
+
+        assert!(file_path.exists());
+        assert_eq!(result.cleaned_items, 1);
+        assert_eq!(result.freed_bytes, size);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

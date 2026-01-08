@@ -109,3 +109,26 @@ fn is_no_requires_message(stderr: &str, package: &str) -> bool {
     .iter()
     .any(|marker| lower.contains(marker))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::is_no_requires_message;
+
+    #[test]
+    fn test_is_no_requires_message_english() {
+        let msg = "no package requires libnsl";
+        assert!(is_no_requires_message(msg, "libnsl"));
+    }
+
+    #[test]
+    fn test_is_no_requires_message_russian() {
+        let msg = "ни один из пакетов не требует libnsl";
+        assert!(is_no_requires_message(msg, "libnsl"));
+    }
+
+    #[test]
+    fn test_is_no_requires_message_other_error() {
+        let msg = "error: package libnsl is not installed";
+        assert!(!is_no_requires_message(msg, "libnsl"));
+    }
+}

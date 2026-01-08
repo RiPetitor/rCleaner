@@ -58,3 +58,55 @@ fn cache_path() -> PathBuf {
     }
     PathBuf::from(CACHE_FILE)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{CleanupCategory, CleanupItem, CleanupSource};
+    use std::sync::Mutex;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
+
+    fn temp_cache_dir() -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let mut path = std::env::temp_dir();
+        path.push(format!("rcleaner-cache-{nanos}-{}", std::process::id()));
+        path
+    }
+
+    #[test]
+    fn test_cache_roundtrip() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp_dir = temp_cache_dir();
+        unsafe {
+            std::env::set_var("XDG_CACHE_HOME", &temp_dir);
+        }
+
+        let items = vec![CleanupItem {
+            id: "test-item".to_string(),
+            name: "Test".to_string(),
+            path: Some("/tmp/test".to_string()),
+            size: 123,
+            description: "Test item".to_string(),
+            category: CleanupCategory::Cache,
+            source: CleanupSource::FileSystem,
+            selected: false,
+            can_clean: true,
+            dependencies: Vec::new(),
+        }];
+
+        save_cached_items(&items).unwrap();
+        let loaded = load_cached_items().unwrap().unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].id, "test-item");
+
+        unsafe {
+            std::env::remove_var("XDG_CACHE_HOME");
+        }
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+}
