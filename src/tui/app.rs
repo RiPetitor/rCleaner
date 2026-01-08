@@ -1,5 +1,6 @@
 use crate::cleaner;
-use crate::error::Result;
+use crate::config::Config;
+use crate::error::{RcleanerError, Result};
 use crate::models::CleanupItem;
 use crate::system::detection::{SystemInfo, SystemType, detect_system};
 use crate::tui::action::{Action, SafetyLevel, Screen};
@@ -9,6 +10,7 @@ use crate::tui::state::State;
 use crate::utils::cache;
 use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
 use ratatui::{DefaultTerminal, Frame};
+use std::path::PathBuf;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
@@ -18,6 +20,8 @@ type ScanResult = std::result::Result<Vec<CleanupItem>, String>;
 pub struct App {
     dispatcher: Dispatcher,
     system_label: String,
+    config: Config,
+    config_path: PathBuf,
     scan_tx: mpsc::Sender<ScanResult>,
     scan_rx: mpsc::Receiver<ScanResult>,
     scan_in_progress: bool,
@@ -29,14 +33,23 @@ impl App {
         dispatcher.dispatch(Action::Init);
 
         let (scan_tx, scan_rx) = mpsc::channel();
+        let config_path = Config::default_path();
+        let (config, status_message) = load_config(&config_path);
+
         let mut app = Self {
             dispatcher,
             system_label: build_system_label(),
+            config,
+            config_path,
             scan_tx,
             scan_rx,
             scan_in_progress: false,
         };
 
+        app.apply_config_to_state();
+        if let Some(message) = status_message {
+            app.dispatcher.dispatch(Action::SetStatus(Some(message)));
+        }
         app.load_cached_items();
         app.request_scan("Startup scan");
 
@@ -73,9 +86,14 @@ impl App {
             Screen::Confirm => {
                 confirm::render_confirm_screen(frame, area, state, &self.system_label)
             }
-            Screen::Settings => {
-                settings::render_settings_screen(frame, area, state, &self.system_label)
-            }
+            Screen::Settings => settings::render_settings_screen(
+                frame,
+                area,
+                state,
+                &self.system_label,
+                self.config.current_profile().auto_confirm,
+                &self.config_path.to_string_lossy(),
+            ),
             Screen::Progress => {
                 progress::render_progress_screen(frame, area, state, &self.system_label)
             }
@@ -93,7 +111,7 @@ impl App {
         let screen = self.dispatcher.store().state().active_screen;
 
         match screen {
-            Screen::Main => self.handle_main_keys(key),
+            Screen::Main => self.handle_main_keys(key, terminal)?,
             Screen::Confirm => self.handle_confirm_keys(key, terminal)?,
             Screen::Settings => self.handle_settings_keys(key),
             Screen::Results => self.handle_results_keys(key),
@@ -103,7 +121,11 @@ impl App {
         Ok(())
     }
 
-    fn handle_main_keys(&mut self, key: event::KeyEvent) {
+    fn handle_main_keys(
+        &mut self,
+        key: event::KeyEvent,
+        terminal: &mut DefaultTerminal,
+    ) -> Result<()> {
         match key.code {
             KeyCode::Char('q') | KeyCode::Char('Q') => {
                 self.dispatcher.dispatch(Action::Exit);
@@ -113,7 +135,11 @@ impl App {
             }
             KeyCode::Enter => {
                 if self.dispatcher.store().state().selected_count() > 0 {
-                    self.dispatcher.dispatch(Action::OpenConfirm);
+                    if self.config.current_profile().auto_confirm {
+                        self.perform_cleanup(terminal)?;
+                    } else {
+                        self.dispatcher.dispatch(Action::OpenConfirm);
+                    }
                 } else {
                     self.dispatcher
                         .dispatch(Action::SetStatus(Some("No items selected.".to_string())));
@@ -142,6 +168,7 @@ impl App {
             }
             _ => {}
         }
+        Ok(())
     }
 
     fn handle_confirm_keys(
@@ -168,7 +195,7 @@ impl App {
                     SafetyLevel::Safe => SafetyLevel::Aggressive,
                     SafetyLevel::Aggressive => SafetyLevel::Safe,
                 };
-                self.dispatcher.dispatch(Action::ChangeSafetyLevel(next));
+                self.apply_safety_level(next);
             }
             KeyCode::Enter | KeyCode::Esc => {
                 self.dispatcher.dispatch(Action::BackToMain);
@@ -253,6 +280,7 @@ impl App {
             return;
         }
 
+        self.reload_config();
         self.scan_in_progress = true;
         self.dispatcher.dispatch(Action::Refresh);
         self.dispatcher
@@ -293,6 +321,41 @@ impl App {
             log::warn!("Failed to render: {}", err);
         }
     }
+
+    fn apply_config_to_state(&mut self) {
+        let level = safety_level_from_config(&self.config);
+        self.dispatcher.dispatch(Action::ChangeSafetyLevel(level));
+    }
+
+    fn apply_safety_level(&mut self, level: SafetyLevel) {
+        self.dispatcher.dispatch(Action::ChangeSafetyLevel(level));
+        self.config.safety.level = match level {
+            SafetyLevel::Safe => "safe".to_string(),
+            SafetyLevel::Aggressive => "aggressive".to_string(),
+        };
+
+        if let Err(err) = self.config.save(&self.config_path) {
+            log::warn!("Failed to save config: {}", err);
+            self.dispatcher.dispatch(Action::SetStatus(Some(
+                "Failed to save config.".to_string(),
+            )));
+        } else {
+            self.dispatcher
+                .dispatch(Action::SetStatus(Some("Config saved.".to_string())));
+        }
+    }
+
+    fn reload_config(&mut self) {
+        match Config::load(&self.config_path) {
+            Ok(config) => {
+                self.config = config;
+                self.apply_config_to_state();
+            }
+            Err(err) => {
+                log::warn!("Failed to reload config: {}", err);
+            }
+        }
+    }
 }
 
 fn build_system_label() -> String {
@@ -314,4 +377,39 @@ fn format_system_label(info: &SystemInfo) -> String {
         }
     }
     label
+}
+
+fn load_config(path: &PathBuf) -> (Config, Option<String>) {
+    match Config::load(path) {
+        Ok(config) => (config, None),
+        Err(RcleanerError::Io(err)) if err.kind() == std::io::ErrorKind::NotFound => {
+            let config = Config::default();
+            if let Err(save_err) = config.save(path) {
+                log::warn!("Failed to write default config: {}", save_err);
+                return (
+                    config,
+                    Some("Using defaults (config not saved).".to_string()),
+                );
+            }
+            (
+                config,
+                Some(format!(
+                    "Created default config at {}.",
+                    path.to_string_lossy()
+                )),
+            )
+        }
+        Err(err) => {
+            log::warn!("Failed to load config: {}", err);
+            (Config::default(), Some("Using default config.".to_string()))
+        }
+    }
+}
+
+fn safety_level_from_config(config: &Config) -> SafetyLevel {
+    if config.safety.level.to_lowercase() == "aggressive" {
+        SafetyLevel::Aggressive
+    } else {
+        SafetyLevel::Safe
+    }
 }

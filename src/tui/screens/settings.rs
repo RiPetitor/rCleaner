@@ -12,6 +12,8 @@ pub fn render_settings_screen(
     area: ratatui::layout::Rect,
     state: &State,
     system_label: &str,
+    auto_confirm: bool,
+    config_path: &str,
 ) {
     let outer = Block::default()
         .borders(Borders::ALL)
@@ -59,8 +61,16 @@ pub fn render_settings_screen(
         .highlight_symbol("> ");
     frame.render_stateful_widget(list, content_chunks[0], &mut list_state);
 
-    let hint = Paragraph::new("Safety rules prevent removing protected system files.")
-        .block(Block::default().borders(Borders::ALL).title("Info"));
+    let hint = Paragraph::new(format!(
+        "Profile: {}\nAuto confirm: {}\nConfig: {}\nEdit whitelist/blacklist in config.",
+        match state.safety_level {
+            SafetyLevel::Safe => "safe",
+            SafetyLevel::Aggressive => "aggressive",
+        },
+        if auto_confirm { "on" } else { "off" },
+        config_path,
+    ))
+    .block(Block::default().borders(Borders::ALL).title("Info"));
     frame.render_widget(hint, content_chunks[1]);
 
     let keys = vec![
