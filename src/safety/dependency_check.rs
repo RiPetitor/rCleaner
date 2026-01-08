@@ -4,23 +4,6 @@ use crate::system::{apt::AptManager, dnf::DnfManager, pacman::PacmanManager, rpm
 use std::env;
 use std::path::Path;
 
-#[allow(dead_code)]
-pub fn check_dependencies(package: &str) -> Result<Vec<String>> {
-    if command_exists("apt-cache") {
-        return AptManager::new().check_dependencies(package);
-    }
-    if command_exists("dnf") {
-        return DnfManager::new().check_dependencies(package);
-    }
-    if command_exists("pacman") {
-        return PacmanManager::new().check_dependencies(package);
-    }
-    if command_exists("rpm") {
-        return RpmManager::new().check_dependencies(package);
-    }
-    Ok(Vec::new())
-}
-
 pub fn check_dependencies_for_manager(manager: &str, package: &str) -> Result<Vec<String>> {
     match manager {
         "apt" => {
@@ -52,17 +35,6 @@ pub fn check_dependencies_for_manager(manager: &str, package: &str) -> Result<Ve
             }
         }
         _ => Ok(Vec::new()),
-    }
-}
-
-#[allow(dead_code)]
-pub fn is_safe_to_remove(package: &str, installed_packages: &[String]) -> bool {
-    if !installed_packages.iter().any(|p| p == package) {
-        return false;
-    }
-    match check_dependencies(package) {
-        Ok(deps) => deps.is_empty(),
-        Err(_) => false,
     }
 }
 

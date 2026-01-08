@@ -1,8 +1,6 @@
-mod blacklist;
 mod dependency_check;
 mod permissions;
 mod rules;
-mod whitelist;
 
 use self::dependency_check::check_dependencies_for_manager;
 use self::permissions::{can_clean_path, is_root};
