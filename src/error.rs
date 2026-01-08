@@ -31,6 +31,9 @@ pub enum RcleanerError {
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
+    #[error("Filesystem copy error: {0}")]
+    FsExtra(#[from] fs_extra::error::Error),
+
     #[error("Command execution error: {0}")]
     Command(String),
 
