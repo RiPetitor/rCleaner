@@ -1,181 +1,81 @@
 # rCleaner
 
-TUI system cleaner for Linux with support for Atomic and Desktop distributions.
+Safe, fast TUI system cleaner for Linux — built for Atomic and classic desktop distributions.
+
+Current version: 0.9.0
 
 Language: [English](#english) | [Русский](#русский)
 
 ## English
 
 ### What it is
-rCleaner is a terminal UI application for scanning and cleaning common system and user clutter.
-It is built to support both Atomic (rpm-ostree) and classic Desktop distributions.
+rCleaner is a terminal UI system cleaner that removes clutter while keeping critical system areas protected.
 
-### Features
-- TUI with 6 cleanup tabs: Cache, Apps, Temp, Logs, Old Packages, Old Kernels
-- Safety rules: whitelist/blacklist, root-only disable, protected system paths
-- Modular cleaners and package-manager abstraction
-- Configurable profiles (safe/aggressive)
-- Dry-run hooks in interfaces (implementation in progress)
+### Key features
+- 6 cleanup categories: Cache, Apps, Temp, Logs, Old Packages, Old Kernels
+- Works on Atomic (rpm-ostree) and classic desktop distributions
+- Safety-first rules with protected system paths, whitelist/blacklist, and root-only safety override
+- Safe / Aggressive profiles for different cleanup styles
+- Dry-run mode to preview changes
+- Automatic backups before cleanup
+- App sources: Flatpak, Snap, Docker, Podman
+- Fast scanning, clear summaries, and progress feedback
 
-### Status
-Early development. Some modules are stubs and behavior may change.
+### Experience
+- Focused TUI interface with tabs, search, and bulk selection
+- Transparent size estimates and results after cleaning
 
-### Requirements
-- Linux
-- Rust stable (edition 2024)
-- A real terminal (TTY) for the TUI
-
-### Quick start
-```bash
-cargo run
+### Preview
 ```
-
-If you run without a TTY (for example, from a non-interactive shell), rCleaner exits with a clear
-message instead of crashing.
-
-### Keybindings
-| Key | Action |
-| --- | --- |
-| Q | Quit |
-| R | Refresh |
-| Tab / Shift+Tab | Next / previous tab |
-| Up / Down | Navigate items |
-| Space | Toggle selection |
-| A | Select all visible |
-| S | Open settings |
-| E (Settings) | Toggle safety on/off |
-| O (Settings) | Toggle root-only disable |
-| W / B (Settings) | Edit whitelist / blacklist |
-| / | Search by name |
-| Enter | Start cleanup |
-| Y / N / Esc | Confirm / cancel cleanup |
-
-### Configuration
-Config file path:
-`~/.config/rcleaner/config.toml`
-
-If the file is missing, rCleaner creates it with defaults on first launch.
-
-Example:
-```toml
-[safety]
-enabled = true
-only_root_can_disable = true
-level = "safe"
-
-[profiles.safe]
-auto_confirm = false
-keep_recent_kernels = 2
-keep_recent_deployments = 2
-max_backup_size_gb = 10
-
-[profiles.aggressive]
-auto_confirm = true
-keep_recent_kernels = 1
-keep_recent_deployments = 1
-max_backup_size_gb = 5
-
-[rules.whitelist]
-paths = ["~/.config", "~/Documents", "~/Projects"]
-
-[rules.blacklist]
-patterns = ["*.tmp", "*.log"]
-```
-
-### Safety notes
-rCleaner is designed to avoid dangerous paths by default, but cleaning is still a destructive
-operation. Review selections carefully and test in a safe environment.
-
-### Development
-```bash
-cargo check
-cargo test
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Safety: SAFE           rCleaner v0.9.0             Fedora 40 Atomic | KDE │
+├──────────────────────────────────────────────────────────────────────────┤
+│ [Cache] [Apps] [Temp] [Logs] [Packages] [Kernels]                        │
+├──────────────────────────────────────────────────────────────────────────┤
+│ [x] ~/.cache/mozilla/...                         1.2 GB                  │
+│ [ ] ~/.cache/thumbnails                          450 MB                  │
+│ [x] /var/cache/flatpak                           200 MB                  │
+│ [ ] ~/.cache/Steam                               3.4 GB                  │
+│                                                                          │
+│ Selected: 1.85 GB (12%)      Total: 15.2 GB                              │
+├──────────────────────────────────────────────────────────────────────────┤
+│ [Tab] Next  [/] Search  [A] All  [Enter] Clean  [S] Settings  [Q] Quit    │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Русский
 
 ### Что это
-rCleaner — терминальное (TUI) приложение для поиска и очистки мусора в системе и пользовательских
-каталогах. Поддерживаются Atomic (rpm-ostree) и классические Desktop-дистрибутивы.
+rCleaner — TUI-очиститель для Linux, который убирает мусор и бережно относится к системе.
 
 ### Возможности
-- TUI с 6 вкладками: Кэш, Приложения, Временные файлы, Журналы, Старые пакеты, Старые ядра
-- Правила безопасности: whitelist/blacklist, отключение только для root, защита системных путей
-- Модульные очистители и абстракция пакетных менеджеров
-- Профили безопасности (safe/aggressive)
-- Dry-run в интерфейсах (реализация в процессе)
+- 6 категорий очистки: Кэш, Приложения, Временные файлы, Логи, Старые пакеты, Старые ядра
+- Поддержка Atomic (rpm-ostree) и классических desktop-дистрибутивов
+- Безопасные правила: защита системных путей, whitelist/blacklist, переключатель безопасности только для root
+- Профили Safe / Aggressive
+- Dry-run для предварительного просмотра
+- Автоматические бэкапы перед очисткой
+- Источники приложений: Flatpak, Snap, Docker, Podman
+- Быстрое сканирование, понятная статистика и прогресс
 
-### Статус
-Ранняя стадия разработки. Некоторые модули являются заглушками, поведение может меняться.
+### Интерфейс
+- Вкладки, поиск и массовый выбор
+- Прозрачная оценка объёма и итогов очистки
 
-### Требования
-- Linux
-- Rust stable (edition 2024)
-- Реальный терминал (TTY) для TUI
-
-### Быстрый старт
-```bash
-cargo run
+### Превью
 ```
-
-Если запускать без TTY (например, из неинтерактивного окружения), rCleaner завершится с понятным
-сообщением вместо паники.
-
-### Горячие клавиши
-| Клавиша | Действие |
-| --- | --- |
-| Q | Выход |
-| R | Обновить |
-| Tab / Shift+Tab | Следующая / предыдущая вкладка |
-| Up / Down | Навигация по списку |
-| Space | Выбор элемента |
-| A | Выбрать всё видимое |
-| S | Открыть настройки |
-| E (Настройки) | Включить/выключить безопасность |
-| O (Настройки) | Переключить запрет отключения без root |
-| W / B (Настройки) | Редактировать whitelist / blacklist |
-| / | Поиск по имени |
-| Enter | Запуск очистки |
-| Y / N / Esc | Подтвердить / отменить |
-
-### Конфигурация
-Путь к конфигу:
-`~/.config/rcleaner/config.toml`
-
-Если файла нет, rCleaner создаст его с настройками по умолчанию при первом запуске.
-
-Пример:
-```toml
-[safety]
-enabled = true
-only_root_can_disable = true
-level = "safe"
-
-[profiles.safe]
-auto_confirm = false
-keep_recent_kernels = 2
-keep_recent_deployments = 2
-max_backup_size_gb = 10
-
-[profiles.aggressive]
-auto_confirm = true
-keep_recent_kernels = 1
-keep_recent_deployments = 1
-max_backup_size_gb = 5
-
-[rules.whitelist]
-paths = ["~/.config", "~/Documents", "~/Projects"]
-
-[rules.blacklist]
-patterns = ["*.tmp", "*.log"]
-```
-
-### Замечания по безопасности
-rCleaner старается избегать критичных путей, но очистка — это разрушительная операция. Внимательно
-проверяйте выбор и тестируйте в безопасной среде.
-
-### Разработка
-```bash
-cargo check
-cargo test
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Safety: SAFE           rCleaner v0.9.0             Fedora 40 Atomic | KDE │
+├──────────────────────────────────────────────────────────────────────────┤
+│ [Cache] [Apps] [Temp] [Logs] [Packages] [Kernels]                        │
+├──────────────────────────────────────────────────────────────────────────┤
+│ [x] ~/.cache/mozilla/...                         1.2 GB                  │
+│ [ ] ~/.cache/thumbnails                          450 MB                  │
+│ [x] /var/cache/flatpak                           200 MB                  │
+│ [ ] ~/.cache/Steam                               3.4 GB                  │
+│                                                                          │
+│ Selected: 1.85 GB (12%)      Total: 15.2 GB                              │
+├──────────────────────────────────────────────────────────────────────────┤
+│ [Tab] Next  [/] Search  [A] All  [Enter] Clean  [S] Settings  [Q] Quit    │
+└──────────────────────────────────────────────────────────────────────────┘
 ```

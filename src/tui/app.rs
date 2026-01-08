@@ -91,15 +91,21 @@ impl App {
 
         match state.active_screen {
             Screen::Main => main::render_main_screen(frame, area, state, &self.system_label),
-            Screen::Confirm => {
-                confirm::render_confirm_screen(frame, area, state, &self.system_label)
-            }
+            Screen::Confirm => confirm::render_confirm_screen(
+                frame,
+                area,
+                state,
+                &self.system_label,
+                self.config.current_profile().dry_run,
+            ),
             Screen::Settings => settings::render_settings_screen(
                 frame,
                 area,
                 state,
                 &self.system_label,
                 self.config.current_profile().auto_confirm,
+                self.config.current_profile().dry_run,
+                self.config.current_profile().temp_max_age_days,
                 &self.config_path.to_string_lossy(),
                 self.config.safety.enabled,
                 self.config.safety.only_root_can_disable,
@@ -275,6 +281,9 @@ impl App {
             KeyCode::Char('o') | KeyCode::Char('O') => {
                 self.toggle_root_only_disable();
             }
+            KeyCode::Char('d') | KeyCode::Char('D') => {
+                self.toggle_dry_run();
+            }
             KeyCode::Char('w') | KeyCode::Char('W') => {
                 self.begin_settings_edit(SettingsEdit::Whitelist);
             }
@@ -311,8 +320,10 @@ impl App {
         self.draw_current(terminal);
 
         let mut last_error = None;
-        let result =
-            cleaner::clean_selected_with_progress(&selected_items, false, |progress, step| {
+        let result = cleaner::clean_selected_with_progress(
+            &selected_items,
+            self.config.current_profile().dry_run,
+            |progress, step| {
                 self.dispatcher.dispatch(Action::CleanupProgress {
                     progress,
                     step: Some(step.to_string()),
@@ -323,7 +334,8 @@ impl App {
                 }) {
                     last_error = Some(err.to_string());
                 }
-            });
+            },
+        );
 
         if let Some(message) = last_error {
             log::warn!("Failed to render progress: {}", message);
@@ -470,6 +482,16 @@ impl App {
 
         self.config.safety.only_root_can_disable = !self.config.safety.only_root_can_disable;
         self.save_config("Safety policy updated.");
+    }
+
+    fn toggle_dry_run(&mut self) {
+        let profile = if self.config.safety.level.to_lowercase() == "aggressive" {
+            &mut self.config.profiles.aggressive
+        } else {
+            &mut self.config.profiles.safe
+        };
+        profile.dry_run = !profile.dry_run;
+        self.save_config("Dry-run updated.");
     }
 
     fn save_config(&mut self, message: &str) -> bool {

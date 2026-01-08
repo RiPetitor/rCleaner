@@ -1,4 +1,3 @@
-use crate::backup::BackupManager;
 use crate::cleaner::base::Cleaner;
 use crate::error::Result;
 use crate::models::{CleanupCategory, CleanupItem, CleanupResult, CleanupSource};
@@ -33,21 +32,22 @@ impl Cleaner for LogsCleaner {
 
         let log_path = PathBuf::from("/var/log");
         if let Ok(size) = calculate_directory_size(&log_path)
-            && size > 0 {
-                items.push(CleanupItem {
-                    id: log_path.to_string_lossy().to_string(),
-                    name: "System logs".to_string(),
-                    path: Some(log_path.to_string_lossy().to_string()),
-                    size,
-                    description: "/var/log".to_string(),
-                    category: self.category(),
-                    source: CleanupSource::FileSystem,
-                    selected: false,
-                    can_clean: true,
-                    blocked_reason: None,
-                    dependencies: Vec::new(),
-                });
-            }
+            && size > 0
+        {
+            items.push(CleanupItem {
+                id: log_path.to_string_lossy().to_string(),
+                name: "System logs".to_string(),
+                path: Some(log_path.to_string_lossy().to_string()),
+                size,
+                description: "/var/log".to_string(),
+                category: self.category(),
+                source: CleanupSource::FileSystem,
+                selected: false,
+                can_clean: true,
+                blocked_reason: None,
+                dependencies: Vec::new(),
+            });
+        }
 
         if let Some((size, description)) = journal_usage() {
             items.push(CleanupItem {
@@ -70,11 +70,6 @@ impl Cleaner for LogsCleaner {
 
     fn clean(&self, items: &[CleanupItem], dry_run: bool) -> Result<CleanupResult> {
         let mut result = CleanupResult::default();
-
-        if !dry_run {
-            let manager = BackupManager::from_config()?;
-            let _backup = manager.create_backup(items)?;
-        }
 
         for item in items {
             if !self.can_clean(item) {
@@ -143,9 +138,10 @@ fn calculate_directory_size(path: &Path) -> Result<u64> {
     let mut total_size = 0u64;
     for entry in WalkDir::new(path).into_iter().flatten() {
         if let Ok(metadata) = entry.metadata()
-            && metadata.is_file() {
-                total_size += metadata.len();
-            }
+            && metadata.is_file()
+        {
+            total_size += metadata.len();
+        }
     }
     Ok(total_size)
 }
@@ -167,9 +163,10 @@ fn parse_journal_size(output: &str) -> Option<u64> {
     for token in output.split_whitespace() {
         if token.chars().any(|c| c.is_ascii_digit())
             && token.chars().any(|c| c.is_ascii_alphabetic())
-            && let Some(size) = parse_size_to_bytes(token) {
-                return Some(size);
-            }
+            && let Some(size) = parse_size_to_bytes(token)
+        {
+            return Some(size);
+        }
     }
     None
 }

@@ -34,8 +34,18 @@ impl SafetyChecker {
     ///
     /// Возвращает `true`, если элемент можно безопасно удалить.
     pub fn is_safe_to_clean(&self, item: &CleanupItem) -> Result<bool> {
-        if !self.config.safety.enabled && (!self.config.safety.only_root_can_disable || is_root()) {
-            return Ok(true);
+        let safety_disabled =
+            !self.config.safety.enabled && (!self.config.safety.only_root_can_disable || is_root());
+
+        if item.id == "systemd-journal" && !is_root() {
+            return Ok(false);
+        }
+
+        if let CleanupSource::PackageManager(manager) = &item.source
+            && requires_root(manager)
+            && !is_root()
+        {
+            return Ok(false);
         }
 
         if let Some(ref path) = item.path
@@ -44,14 +54,16 @@ impl SafetyChecker {
             return Ok(false);
         }
 
-        if !self.rules.check_item(item) {
-            return Ok(false);
-        }
-
-        if let CleanupSource::PackageManager(manager) = &item.source {
-            let deps = check_dependencies_for_manager(manager, &item.name)?;
-            if !deps.is_empty() {
+        if !safety_disabled {
+            if !self.rules.check_item(item) {
                 return Ok(false);
+            }
+
+            if let CleanupSource::PackageManager(manager) = &item.source {
+                let deps = check_dependencies_for_manager(manager, &item.name)?;
+                if !deps.is_empty() {
+                    return Ok(false);
+                }
             }
         }
 
@@ -62,7 +74,19 @@ impl SafetyChecker {
     ///
     /// Устанавливает `can_clean = false` и `blocked_reason`, если элемент заблокирован.
     pub fn apply_to_item(&self, item: &mut CleanupItem) -> Result<()> {
-        if !self.config.safety.enabled && (!self.config.safety.only_root_can_disable || is_root()) {
+        let safety_disabled =
+            !self.config.safety.enabled && (!self.config.safety.only_root_can_disable || is_root());
+
+        if item.id == "systemd-journal" && !is_root() {
+            mark_blocked(item, "Root required to manage systemd journal");
+            return Ok(());
+        }
+
+        if let CleanupSource::PackageManager(manager) = &item.source
+            && requires_root(manager)
+            && !is_root()
+        {
+            mark_blocked(item, "Root required to manage packages");
             return Ok(());
         }
 
@@ -70,17 +94,22 @@ impl SafetyChecker {
             && !can_clean_path(path)
         {
             mark_blocked(item, "Insufficient permissions to clean path");
+            if safety_disabled {
+                return Ok(());
+            }
         }
 
-        if let Some(reason) = self.rules.check_item_reason(item) {
-            mark_blocked(item, &reason);
-        }
+        if !safety_disabled {
+            if let Some(reason) = self.rules.check_item_reason(item) {
+                mark_blocked(item, &reason);
+            }
 
-        if let CleanupSource::PackageManager(manager) = &item.source {
-            let deps = check_dependencies_for_manager(manager, &item.name)?;
-            if !deps.is_empty() {
-                item.dependencies = deps;
-                mark_blocked(item, "Package has dependents");
+            if let CleanupSource::PackageManager(manager) = &item.source {
+                let deps = check_dependencies_for_manager(manager, &item.name)?;
+                if !deps.is_empty() {
+                    item.dependencies = deps;
+                    mark_blocked(item, "Package has dependents");
+                }
             }
         }
 
@@ -94,4 +123,11 @@ fn mark_blocked(item: &mut CleanupItem, reason: &str) {
     if item.blocked_reason.is_none() {
         item.blocked_reason = Some(reason.to_string());
     }
+}
+
+fn requires_root(manager: &str) -> bool {
+    matches!(
+        manager,
+        "apt" | "dnf" | "rpm" | "pacman" | "snap" | "rpm-ostree"
+    )
 }

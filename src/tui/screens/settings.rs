@@ -12,6 +12,8 @@ pub struct SettingsScreenParams<'a> {
     pub state: &'a State,
     pub system_label: &'a str,
     pub auto_confirm: bool,
+    pub dry_run: bool,
+    pub temp_max_age_days: u64,
     pub config_path: &'a str,
     pub safety_enabled: bool,
     pub only_root_can_disable: bool,
@@ -27,6 +29,8 @@ pub fn render_settings_screen(
     state: &State,
     system_label: &str,
     auto_confirm: bool,
+    dry_run: bool,
+    temp_max_age_days: u64,
     config_path: &str,
     safety_enabled: bool,
     only_root_can_disable: bool,
@@ -58,7 +62,7 @@ pub fn render_settings_screen(
 
     let left_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(6), Constraint::Min(0)])
+        .constraints([Constraint::Length(9), Constraint::Min(0)])
         .split(content_chunks[0]);
 
     let safety_status = if safety_enabled {
@@ -73,8 +77,9 @@ pub fn render_settings_screen(
     };
 
     let info = Paragraph::new(format!(
-        "Safety: {safety_status} (E)\nRoot-only disable: {root_status} (O)\nLevel: {level_label}\nAuto confirm: {}\nConfig: {}",
+        "Safety: {safety_status} (E)\nRoot-only disable: {root_status} (O)\nLevel: {level_label}\nAuto confirm: {}\nDry run: {}\nTemp age: {temp_max_age_days}d\nConfig: {}",
         if auto_confirm { "on" } else { "off" },
+        if dry_run { "on" } else { "off" },
         config_path
     ))
     .block(Block::default().borders(Borders::ALL).title("Config"));
@@ -147,7 +152,7 @@ pub fn render_settings_screen(
         });
     }
 
-    let keys = if state.settings_edit.is_some() {
+    let mut keys = if state.settings_edit.is_some() {
         vec![
             "[Enter] Save".to_string(),
             "[Esc] Cancel".to_string(),
@@ -158,11 +163,15 @@ pub fn render_settings_screen(
             "[Left/Right] Level".to_string(),
             "[E] Toggle safety".to_string(),
             "[O] Root-only".to_string(),
+            "[D] Dry run".to_string(),
             "[W/B] Edit rules".to_string(),
             "[Enter] Back".to_string(),
             "[Esc] Back".to_string(),
         ]
     };
+    if let Some(message) = state.status_message.as_deref() {
+        keys.push(message.to_string());
+    }
     render_status_bar(frame, chunks[2], &keys);
 }
 

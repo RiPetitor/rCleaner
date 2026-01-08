@@ -41,12 +41,18 @@ pub struct ProfilesConfig {
 pub struct ProfileConfig {
     /// Автоматическое подтверждение очистки.
     pub auto_confirm: bool,
+    /// Только симуляция очистки без удаления.
+    #[serde(default)]
+    pub dry_run: bool,
     /// Сколько последних ядер сохранять.
     pub keep_recent_kernels: usize,
     /// Сколько последних deployments сохранять (rpm-ostree).
     pub keep_recent_deployments: usize,
     /// Максимальный размер бэкапа в ГБ.
     pub max_backup_size_gb: usize,
+    /// Минимальный возраст временных файлов (дней) для удаления.
+    #[serde(default = "default_temp_max_age_days")]
+    pub temp_max_age_days: u64,
 }
 
 /// Правила whitelist и blacklist.
@@ -83,15 +89,19 @@ impl Default for Config {
             profiles: ProfilesConfig {
                 safe: ProfileConfig {
                     auto_confirm: false,
+                    dry_run: false,
                     keep_recent_kernels: 2,
                     keep_recent_deployments: 2,
                     max_backup_size_gb: 10,
+                    temp_max_age_days: 7,
                 },
                 aggressive: ProfileConfig {
                     auto_confirm: true,
+                    dry_run: false,
                     keep_recent_kernels: 1,
                     keep_recent_deployments: 1,
                     max_backup_size_gb: 5,
+                    temp_max_age_days: 3,
                 },
             },
             rules: RulesConfig {
@@ -153,6 +163,10 @@ impl Config {
             &self.profiles.safe
         }
     }
+}
+
+fn default_temp_max_age_days() -> u64 {
+    7
 }
 
 #[cfg(test)]

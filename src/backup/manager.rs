@@ -74,6 +74,9 @@ impl BackupManager {
             selected.push(path);
         }
 
+        let estimated_size = estimate_total_size(&selected)?;
+        self.ensure_capacity(estimated_size)?;
+
         let id = generate_backup_id();
         let backup_root = self.backup_dir.join(&id);
         fs::create_dir_all(&backup_root)?;
@@ -124,9 +127,10 @@ impl BackupManager {
             }
             let metadata_path = entry.path().join("metadata.json");
             if let Ok(content) = fs::read_to_string(metadata_path)
-                && let Ok(backup) = serde_json::from_str::<Backup>(&content) {
-                    backups.push(backup);
-                }
+                && let Ok(backup) = serde_json::from_str::<Backup>(&content)
+            {
+                backups.push(backup);
+            }
         }
 
         Ok(backups)
@@ -162,6 +166,40 @@ impl BackupManager {
             }
             self.delete_backup(&backup.id)?;
             total = total.saturating_sub(backup.size);
+        }
+
+        Ok(())
+    }
+
+    fn ensure_capacity(&self, incoming_size: u64) -> Result<()> {
+        if self.max_size == 0 {
+            return Ok(());
+        }
+
+        if incoming_size > self.max_size {
+            return Err(RcleanerError::Backup(format!(
+                "Backup size {} exceeds limit {}",
+                incoming_size, self.max_size
+            )));
+        }
+
+        let mut backups = self.list_backups()?;
+        backups.sort_by_key(|backup| backup.timestamp);
+        let mut total: u64 = backups.iter().map(|backup| backup.size).sum();
+
+        for backup in backups {
+            if total + incoming_size <= self.max_size {
+                break;
+            }
+            self.delete_backup(&backup.id)?;
+            total = total.saturating_sub(backup.size);
+        }
+
+        if total + incoming_size > self.max_size {
+            return Err(RcleanerError::Backup(format!(
+                "Insufficient backup capacity for size {}",
+                incoming_size
+            )));
         }
 
         Ok(())
@@ -239,6 +277,14 @@ fn backup_path_data(source: &Path, dest: &Path) -> Result<(u64, String)> {
     Ok((size, checksum))
 }
 
+fn estimate_total_size(paths: &[PathBuf]) -> Result<u64> {
+    let mut total = 0u64;
+    for path in paths {
+        total = total.saturating_add(calculate_path_size(path)?);
+    }
+    Ok(total)
+}
+
 fn calculate_path_size(path: &Path) -> Result<u64> {
     if path.is_file() {
         let metadata = fs::metadata(path)?;
@@ -252,9 +298,10 @@ fn calculate_path_size(path: &Path) -> Result<u64> {
     let mut total = 0u64;
     for entry in WalkDir::new(path).into_iter().flatten() {
         if let Ok(metadata) = entry.metadata()
-            && metadata.is_file() {
-                total += metadata.len();
-            }
+            && metadata.is_file()
+        {
+            total += metadata.len();
+        }
     }
     Ok(total)
 }

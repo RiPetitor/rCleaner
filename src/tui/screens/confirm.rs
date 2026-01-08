@@ -12,6 +12,7 @@ pub fn render_confirm_screen(
     area: ratatui::layout::Rect,
     state: &State,
     system_label: &str,
+    dry_run: bool,
 ) {
     let outer = Block::default()
         .borders(Borders::ALL)
@@ -40,6 +41,7 @@ pub fn render_confirm_screen(
         .constraints([Constraint::Length(5), Constraint::Min(0)])
         .split(chunks[1]);
 
+    let mode_label = if dry_run { "Dry run" } else { "Execute" };
     let summary = Paragraph::new(Line::from(vec![
         Span::styled(
             "Selected items: ",
@@ -52,6 +54,9 @@ pub fn render_confirm_screen(
             Style::default().add_modifier(Modifier::BOLD),
         ),
         Span::raw(selected_size),
+        Span::raw(" | "),
+        Span::styled("Mode: ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(mode_label),
     ]))
     .block(Block::default().borders(Borders::ALL).title("Summary"));
     frame.render_widget(summary, content_chunks[0]);
