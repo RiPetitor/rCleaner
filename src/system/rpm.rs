@@ -97,19 +97,28 @@ fn split_lines(output: &str) -> Vec<String> {
 
 fn is_no_requires_message(stderr: &str, package: &str) -> bool {
     let lower = stderr.to_lowercase();
-    let package_lower = package.to_lowercase();
-    if !package_lower.is_empty() && !lower.contains(&package_lower) {
+    let markers = [
+        "no package requires",
+        "no packages require",
+        "ни один из пакетов не требует",
+        "не требует",
+        "не требуется",
+    ];
+
+    if !markers.iter().any(|marker| lower.contains(marker)) {
         return false;
     }
 
-    [
-        "no package requires",
-        "no packages require",
-        "не требует",
-        "не требуется",
-    ]
-    .iter()
-    .any(|marker| lower.contains(marker))
+    let package_lower = package.to_lowercase();
+    if package_lower.is_empty() {
+        return true;
+    }
+
+    if lower.contains(&package_lower) {
+        return true;
+    }
+
+    true
 }
 
 #[cfg(test)]
@@ -125,6 +134,12 @@ mod tests {
     #[test]
     fn test_is_no_requires_message_russian() {
         let msg = "ни один из пакетов не требует libnsl";
+        assert!(is_no_requires_message(msg, "libnsl"));
+    }
+
+    #[test]
+    fn test_is_no_requires_message_without_package() {
+        let msg = "no package requires";
         assert!(is_no_requires_message(msg, "libnsl"));
     }
 
