@@ -43,6 +43,7 @@ impl Cleaner for ApplicationsCleaner {
                         source: CleanupSource::PackageManager("flatpak".to_string()),
                         selected: false,
                         can_clean: true,
+                        blocked_reason: None,
                         dependencies: Vec::new(),
                     });
                 }
@@ -65,6 +66,7 @@ impl Cleaner for ApplicationsCleaner {
                         source: CleanupSource::PackageManager("snap".to_string()),
                         selected: false,
                         can_clean: true,
+                        blocked_reason: None,
                         dependencies: Vec::new(),
                     });
                 }
@@ -176,6 +178,7 @@ fn list_container_images(runtime: &str) -> Result<Vec<CleanupItem>> {
             source: CleanupSource::Container(runtime.to_string()),
             selected: false,
             can_clean: true,
+            blocked_reason: None,
             dependencies: Vec::new(),
         });
     }

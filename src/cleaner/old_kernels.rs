@@ -117,6 +117,7 @@ fn scan_rpm_kernels(current: &str, seen: &mut HashSet<String>) -> Result<Vec<Cle
             source: CleanupSource::PackageManager("rpm".to_string()),
             selected: false,
             can_clean: true,
+            blocked_reason: None,
             dependencies: Vec::new(),
         });
     }
@@ -167,6 +168,7 @@ fn scan_apt_kernels(current: &str, seen: &mut HashSet<String>) -> Result<Vec<Cle
                 source: CleanupSource::PackageManager("apt".to_string()),
                 selected: false,
                 can_clean: true,
+                blocked_reason: None,
                 dependencies: Vec::new(),
             });
         }

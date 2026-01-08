@@ -38,6 +38,7 @@ impl Cleaner for LogsCleaner {
                     source: CleanupSource::FileSystem,
                     selected: false,
                     can_clean: true,
+                    blocked_reason: None,
                     dependencies: Vec::new(),
                 });
             }
@@ -54,6 +55,7 @@ impl Cleaner for LogsCleaner {
                 source: CleanupSource::FileSystem,
                 selected: false,
                 can_clean: true,
+                blocked_reason: None,
                 dependencies: Vec::new(),
             });
         }

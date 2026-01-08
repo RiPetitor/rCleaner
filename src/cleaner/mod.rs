@@ -44,6 +44,9 @@ pub fn scan_all() -> Result<Vec<CleanupItem>> {
         if let Err(err) = checker.apply_to_item(item) {
             log::warn!("Safety check failed for {}: {}", item.name, err);
             item.can_clean = false;
+            if item.blocked_reason.is_none() {
+                item.blocked_reason = Some(format!("Safety check failed: {}", err));
+            }
         }
     }
 

@@ -11,6 +11,8 @@ pub struct CleanupItem {
     pub source: CleanupSource,
     pub selected: bool,
     pub can_clean: bool,
+    #[serde(default)]
+    pub blocked_reason: Option<String>,
     pub dependencies: Vec<String>,
 }
 

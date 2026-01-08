@@ -169,6 +169,7 @@ fn make_package_item(name: &str, description: &str, manager: &str) -> CleanupIte
         source: CleanupSource::PackageManager(manager.to_string()),
         selected: false,
         can_clean: true,
+        blocked_reason: None,
         dependencies: Vec::new(),
     }
 }

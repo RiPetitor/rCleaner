@@ -58,22 +58,29 @@ impl SafetyChecker {
 
         if let Some(ref path) = item.path {
             if !can_clean_path(path) {
-                item.can_clean = false;
+                mark_blocked(item, "Insufficient permissions to clean path");
             }
         }
 
-        if !self.rules.check_item(item) {
-            item.can_clean = false;
+        if let Some(reason) = self.rules.check_item_reason(item) {
+            mark_blocked(item, &reason);
         }
 
         if let CleanupSource::PackageManager(manager) = &item.source {
             let deps = check_dependencies_for_manager(manager, &item.name)?;
             if !deps.is_empty() {
                 item.dependencies = deps;
-                item.can_clean = false;
+                mark_blocked(item, "Package has dependents");
             }
         }
 
         Ok(())
+    }
+}
+
+fn mark_blocked(item: &mut CleanupItem, reason: &str) {
+    item.can_clean = false;
+    if item.blocked_reason.is_none() {
+        item.blocked_reason = Some(reason.to_string());
     }
 }

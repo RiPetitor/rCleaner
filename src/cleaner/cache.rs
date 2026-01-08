@@ -71,6 +71,7 @@ impl Cleaner for CacheCleaner {
                         source: CleanupSource::FileSystem,
                         selected: false,
                         can_clean: true,
+                        blocked_reason: None,
                         dependencies: Vec::new(),
                     });
                 }
@@ -98,6 +99,7 @@ impl Cleaner for CacheCleaner {
                             source: CleanupSource::FileSystem,
                             selected: false,
                             can_clean: true,
+                            blocked_reason: None,
                             dependencies: Vec::new(),
                         });
                     }
@@ -181,6 +183,7 @@ mod tests {
             source: CleanupSource::FileSystem,
             selected: true,
             can_clean: true,
+            blocked_reason: None,
             dependencies: Vec::new(),
         };
 

@@ -69,13 +69,31 @@ pub fn render_main_screen(
         .split(body_chunks[1]);
 
     let info_text = match state.selected_item() {
-        Some(item) => format!(
-            "Name: {}\nSize: {}\nSource: {}\n{}\n",
-            item.name,
-            format_size(item.size),
-            format_source(item),
-            item.description
-        ),
+        Some(item) => {
+            let status = if item.can_clean {
+                "Status: OK".to_string()
+            } else if let Some(reason) = &item.blocked_reason {
+                format!("Blocked: {reason}")
+            } else {
+                "Blocked: Safety rules".to_string()
+            };
+
+            let deps = if item.dependencies.is_empty() {
+                String::new()
+            } else {
+                format!("Dependencies: {}\n", item.dependencies.join(", "))
+            };
+
+            format!(
+                "Name: {}\nSize: {}\nSource: {}\n{}\n{}{}\n",
+                item.name,
+                format_size(item.size),
+                format_source(item),
+                status,
+                deps,
+                item.description
+            )
+        }
         None => "No item selected.".to_string(),
     };
     render_info_panel(frame, right_chunks[0], "Details", &info_text);

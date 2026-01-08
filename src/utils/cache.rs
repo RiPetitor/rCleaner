@@ -96,6 +96,7 @@ mod tests {
             source: CleanupSource::FileSystem,
             selected: false,
             can_clean: true,
+            blocked_reason: None,
             dependencies: Vec::new(),
         }];
 

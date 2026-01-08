@@ -10,7 +10,6 @@ pub struct SafetyRules {
     pub blacklist: Vec<SafetyRule>,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct SafetyRule {
     pub pattern: String,
@@ -18,7 +17,6 @@ pub struct SafetyRule {
     pub rule_type: SafetyRuleType,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SafetyRuleType {
     ProtectSystemPackages,
@@ -28,7 +26,6 @@ pub enum SafetyRuleType {
     ProtectActiveApplications,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 struct SafetyRuleTemplate {
     pattern: &'static str,
@@ -146,27 +143,40 @@ impl SafetyRules {
     }
 
     pub fn check_item(&self, item: &CleanupItem) -> bool {
+        self.check_item_reason(item).is_none()
+    }
+
+    pub fn check_item_reason(&self, item: &CleanupItem) -> Option<String> {
         if let Some(ref path) = item.path {
+            if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
+                if path.starts_with(&runtime_dir) {
+                    return Some(format_rule_reason(
+                        SafetyRuleType::ProtectActiveApplications,
+                        "Защита активных приложений",
+                    ));
+                }
+            }
+
             for rule in DEFAULT_RULES.iter() {
                 if self.matches_rule(path, rule.pattern) {
-                    return false;
+                    return Some(format_rule_reason(rule.rule_type, rule.description));
                 }
             }
 
             for rule in &self.whitelist {
                 if self.matches_rule(path, &rule.pattern) {
-                    return false;
+                    return Some(format_rule_reason(rule.rule_type, &rule.description));
                 }
             }
 
             for rule in &self.blacklist {
                 if self.matches_rule(path, &rule.pattern) {
-                    return false;
+                    return Some(format_rule_reason(rule.rule_type, &rule.description));
                 }
             }
         }
 
-        true
+        None
     }
 
     fn matches_rule(&self, path: &str, pattern: &str) -> bool {
@@ -218,6 +228,7 @@ mod tests {
             source: CleanupSource::FileSystem,
             selected: false,
             can_clean: true,
+            blocked_reason: None,
             dependencies: Vec::new(),
         }
     }
@@ -272,4 +283,18 @@ fn glob_to_regex(pattern: &str) -> String {
     }
     output.push('$');
     output
+}
+
+fn format_rule_reason(rule_type: SafetyRuleType, description: &str) -> String {
+    format!("{}: {}", rule_type_label(rule_type), description)
+}
+
+fn rule_type_label(rule_type: SafetyRuleType) -> &'static str {
+    match rule_type {
+        SafetyRuleType::ProtectSystemPackages => "system",
+        SafetyRuleType::ProtectKernel => "kernel",
+        SafetyRuleType::ProtectBootloader => "bootloader",
+        SafetyRuleType::ProtectUserHome => "user",
+        SafetyRuleType::ProtectActiveApplications => "active",
+    }
 }
