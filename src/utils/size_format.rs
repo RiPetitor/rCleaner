@@ -31,16 +31,16 @@ pub fn parse_size_string(value: &str) -> Option<u64> {
     let mut unit = unit_str.trim().to_lowercase();
     unit = unit.replace("bytes", "b").replace("byte", "b");
     unit = unit
-        .trim_matches(|ch: char| !ch.is_ascii_alphanumeric())
+        .trim_matches(|ch: char| !ch.is_alphanumeric())
         .to_string();
 
     let factor = match unit.as_str() {
-        "" | "b" => 1.0,
-        "k" | "kb" | "kib" => 1024.0,
-        "m" | "mb" | "mib" => 1024.0 * 1024.0,
-        "g" | "gb" | "gib" => 1024.0 * 1024.0 * 1024.0,
-        "t" | "tb" | "tib" => 1024.0 * 1024.0 * 1024.0 * 1024.0,
-        "p" | "pb" | "pib" => 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
+        "" | "b" | "б" => 1.0,
+        "k" | "kb" | "kib" | "кб" | "к" => 1024.0,
+        "m" | "mb" | "mib" | "мб" | "м" => 1024.0 * 1024.0,
+        "g" | "gb" | "gib" | "гб" | "г" => 1024.0 * 1024.0 * 1024.0,
+        "t" | "tb" | "tib" | "тб" | "т" => 1024.0 * 1024.0 * 1024.0 * 1024.0,
+        "p" | "pb" | "pib" | "пб" | "п" => 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
         _ => return None,
     };
 
@@ -104,5 +104,14 @@ mod tests {
         assert_eq!(parse_size_string("1 KB"), Some(1024));
         assert_eq!(parse_size_string("1.5MB"), Some(1572864));
         assert_eq!(parse_size_string("2GiB"), Some(2147483648));
+    }
+
+    #[test]
+    fn test_parse_size_string_cyrillic() {
+        // Flatpak возвращает размеры в локализованном формате
+        assert_eq!(parse_size_string("364,5 МБ"), Some(382205952));
+        assert_eq!(parse_size_string("1,4 МБ"), Some(1468006));
+        assert_eq!(parse_size_string("2 ГБ"), Some(2147483648));
+        assert_eq!(parse_size_string("500 КБ"), Some(512000));
     }
 }
