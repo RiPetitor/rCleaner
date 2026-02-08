@@ -67,21 +67,42 @@ impl Cleaner for OldPackagesCleaner {
             }
         }
 
+        let item_sizes: std::collections::HashMap<&str, u64> = items
+            .iter()
+            .map(|item| (item.name.as_str(), item.size))
+            .collect();
+
         if !apt_packages.is_empty() {
             apt::remove_packages(&apt_packages, dry_run)?;
             result.cleaned_items += apt_packages.len();
+            result.freed_bytes += apt_packages
+                .iter()
+                .filter_map(|n| item_sizes.get(n.as_str()))
+                .sum::<u64>();
         }
         if !dnf_packages.is_empty() {
             dnf::remove_packages(&dnf_packages, dry_run)?;
             result.cleaned_items += dnf_packages.len();
+            result.freed_bytes += dnf_packages
+                .iter()
+                .filter_map(|n| item_sizes.get(n.as_str()))
+                .sum::<u64>();
         }
         if !pacman_packages.is_empty() {
             pacman::remove_packages(&pacman_packages, dry_run)?;
             result.cleaned_items += pacman_packages.len();
+            result.freed_bytes += pacman_packages
+                .iter()
+                .filter_map(|n| item_sizes.get(n.as_str()))
+                .sum::<u64>();
         }
         if !rpm_packages.is_empty() {
             rpm::remove_packages(&rpm_packages, dry_run)?;
             result.cleaned_items += rpm_packages.len();
+            result.freed_bytes += rpm_packages
+                .iter()
+                .filter_map(|n| item_sizes.get(n.as_str()))
+                .sum::<u64>();
         }
 
         Ok(result)
@@ -125,7 +146,7 @@ fn scan_apt_autoremove() -> Result<Vec<CleanupItem>> {
     Ok(items)
 }
 
-fn query_dpkg_sizes(packages: &[String]) -> std::collections::HashMap<String, u64> {
+pub(crate) fn query_dpkg_sizes(packages: &[String]) -> std::collections::HashMap<String, u64> {
     let mut sizes = std::collections::HashMap::new();
     if packages.is_empty() {
         return sizes;
@@ -147,10 +168,11 @@ fn query_dpkg_sizes(packages: &[String]) -> std::collections::HashMap<String, u6
     for line in String::from_utf8_lossy(&output.stdout).lines() {
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() == 2
-            && let Ok(kb) = parts[1].parse::<u64>() {
-                // dpkg reports size in KB
-                sizes.insert(parts[0].to_string(), kb * 1024);
-            }
+            && let Ok(kb) = parts[1].parse::<u64>()
+        {
+            // dpkg reports size in KB
+            sizes.insert(parts[0].to_string(), kb * 1024);
+        }
     }
     sizes
 }
@@ -251,26 +273,28 @@ fn scan_pacman_orphans() -> Result<Vec<CleanupItem>> {
     Ok(items)
 }
 
-fn query_pacman_sizes(packages: &[String]) -> std::collections::HashMap<String, u64> {
+pub(crate) fn query_pacman_sizes(packages: &[String]) -> std::collections::HashMap<String, u64> {
     let mut sizes = std::collections::HashMap::new();
     for pkg in packages {
         let output = std::process::Command::new("pacman")
             .args(["-Qi", pkg])
+            .env("LANG", "C")
             .output();
         let Ok(output) = output else { continue };
         for line in String::from_utf8_lossy(&output.stdout).lines() {
             let line = line.trim();
             if let Some(rest) = line.strip_prefix("Installed Size")
                 && let Some((_, value)) = rest.split_once(':')
-                    && let Some(bytes) = parse_human_size(value.trim()) {
-                        sizes.insert(pkg.clone(), bytes);
-                    }
+                && let Some(bytes) = parse_human_size(value.trim())
+            {
+                sizes.insert(pkg.clone(), bytes);
+            }
         }
     }
     sizes
 }
 
-fn parse_human_size(s: &str) -> Option<u64> {
+pub(crate) fn parse_human_size(s: &str) -> Option<u64> {
     let s = s.trim();
     let parts: Vec<&str> = s.split_whitespace().collect();
     if parts.len() != 2 {

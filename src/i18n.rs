@@ -67,6 +67,7 @@ define_translations! {
     tab_logs         => "Logs",        "Логи";
     tab_packages     => "Packages",    "Пакеты";
     tab_kernels      => "Kernels",     "Ядра";
+    tab_system       => "System",      "Система";
 
     // Main screen
     items            => "Items",       "Элементы";
@@ -165,6 +166,7 @@ define_translations! {
     cl_logs          => "Logs Cleaner",         "Очистка логов";
     cl_packages      => "Old Packages Cleaner", "Очистка пакетов";
     cl_kernels       => "Old Kernels Cleaner",  "Очистка ядер";
+    cl_system        => "System Packages Cleaner", "Очистка сист. пакетов";
 
     // Status messages
     config_saved     => "Config saved.",    "Конфиг сохранён.";

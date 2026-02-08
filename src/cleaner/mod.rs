@@ -14,6 +14,7 @@ pub mod cache;
 pub mod logs;
 pub mod old_kernels;
 pub mod old_packages;
+pub mod system_packages;
 pub mod temp_files;
 
 use crate::cleaner::base::Cleaner;
@@ -32,6 +33,7 @@ fn all_cleaners() -> Vec<Box<dyn Cleaner + Send>> {
         Box::new(logs::LogsCleaner::new()),
         Box::new(old_packages::OldPackagesCleaner::new()),
         Box::new(old_kernels::OldKernelsCleaner::new()),
+        Box::new(system_packages::SystemPackagesCleaner::new()),
     ]
 }
 
@@ -126,6 +128,10 @@ where
         (
             CleanupCategory::OldKernels,
             Box::new(old_kernels::OldKernelsCleaner::new()),
+        ),
+        (
+            CleanupCategory::SystemPackages,
+            Box::new(system_packages::SystemPackagesCleaner::new()),
         ),
     ];
 

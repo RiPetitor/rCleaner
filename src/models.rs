@@ -47,6 +47,8 @@ pub enum CleanupCategory {
     OldPackages,
     /// Старые ядра.
     OldKernels,
+    /// Системные пакеты (APT, DNF, Pacman).
+    SystemPackages,
 }
 
 /// Источник элемента для очистки.

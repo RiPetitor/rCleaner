@@ -80,19 +80,36 @@ impl Cleaner for OldKernelsCleaner {
             }
         }
 
+        let item_sizes: std::collections::HashMap<&str, u64> = items
+            .iter()
+            .map(|item| (item.name.as_str(), item.size))
+            .collect();
+
         if !rpm_packages.is_empty() {
             rpm::remove_packages(&rpm_packages, dry_run)?;
             result.cleaned_items += rpm_packages.len();
+            result.freed_bytes += rpm_packages
+                .iter()
+                .filter_map(|n| item_sizes.get(n.as_str()))
+                .sum::<u64>();
         }
 
         if !apt_packages.is_empty() {
             apt::remove_packages(&apt_packages, dry_run)?;
             result.cleaned_items += apt_packages.len();
+            result.freed_bytes += apt_packages
+                .iter()
+                .filter_map(|n| item_sizes.get(n.as_str()))
+                .sum::<u64>();
         }
 
         if !pacman_packages.is_empty() {
             pacman::remove_packages(&pacman_packages, dry_run)?;
             result.cleaned_items += pacman_packages.len();
+            result.freed_bytes += pacman_packages
+                .iter()
+                .filter_map(|n| item_sizes.get(n.as_str()))
+                .sum::<u64>();
         }
 
         Ok(result)

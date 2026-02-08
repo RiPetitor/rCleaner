@@ -5,10 +5,11 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Tabs};
 
-pub fn tab_titles() -> [&'static str; 6] {
+pub fn tab_titles() -> [&'static str; 7] {
     [
         i18n::tab_cache(),
         i18n::tab_apps(),
+        i18n::tab_system(),
         i18n::tab_temp(),
         i18n::tab_logs(),
         i18n::tab_packages(),

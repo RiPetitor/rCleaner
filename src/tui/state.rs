@@ -64,9 +64,10 @@ impl State {
         match self.current_tab {
             0 => CleanupCategory::Cache,
             1 => CleanupCategory::Applications,
-            2 => CleanupCategory::TempFiles,
-            3 => CleanupCategory::Logs,
-            4 => CleanupCategory::OldPackages,
+            2 => CleanupCategory::SystemPackages,
+            3 => CleanupCategory::TempFiles,
+            4 => CleanupCategory::Logs,
+            5 => CleanupCategory::OldPackages,
             _ => CleanupCategory::OldKernels,
         }
     }
@@ -137,9 +138,10 @@ impl State {
         let category = match tab {
             0 => CleanupCategory::Cache,
             1 => CleanupCategory::Applications,
-            2 => CleanupCategory::TempFiles,
-            3 => CleanupCategory::Logs,
-            4 => CleanupCategory::OldPackages,
+            2 => CleanupCategory::SystemPackages,
+            3 => CleanupCategory::TempFiles,
+            4 => CleanupCategory::Logs,
+            5 => CleanupCategory::OldPackages,
             _ => CleanupCategory::OldKernels,
         };
         self.items.iter().filter(|i| i.category == category).count()

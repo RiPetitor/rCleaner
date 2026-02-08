@@ -5,7 +5,7 @@ pub struct Store {
     state: State,
 }
 
-const TAB_COUNT: usize = 6;
+const TAB_COUNT: usize = 7;
 
 impl Default for Store {
     fn default() -> Self {
@@ -354,7 +354,7 @@ mod tests {
         assert_eq!(store.state().current_tab, 0);
 
         store.update(Action::PrevTab);
-        assert_eq!(store.state().current_tab, 5);
+        assert_eq!(store.state().current_tab, 6);
 
         store.update(Action::NextTab);
         assert_eq!(store.state().current_tab, 0);
@@ -583,8 +583,8 @@ mod tests {
     fn test_tab_item_count() {
         let store = store_with_items();
         assert_eq!(store.state().tab_item_count(0), 2); // Cache
-        assert_eq!(store.state().tab_item_count(2), 1); // TempFiles
-        assert_eq!(store.state().tab_item_count(3), 1); // Logs
+        assert_eq!(store.state().tab_item_count(3), 1); // TempFiles
+        assert_eq!(store.state().tab_item_count(4), 1); // Logs
         assert_eq!(store.state().tab_item_count(1), 0); // Apps
     }
 }

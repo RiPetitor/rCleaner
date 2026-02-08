@@ -277,6 +277,7 @@ impl App {
             KeyCode::Char('4') => self.dispatcher.dispatch(Action::ChangeTab(3)),
             KeyCode::Char('5') => self.dispatcher.dispatch(Action::ChangeTab(4)),
             KeyCode::Char('6') => self.dispatcher.dispatch(Action::ChangeTab(5)),
+            KeyCode::Char('7') => self.dispatcher.dispatch(Action::ChangeTab(6)),
             KeyCode::PageDown => {
                 let page = self.page_size();
                 self.dispatcher.dispatch(Action::SelectPageDown(page));
