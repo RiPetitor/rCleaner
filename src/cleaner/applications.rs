@@ -34,48 +34,50 @@ impl Cleaner for ApplicationsCleaner {
         let mut items = Vec::new();
 
         if flatpak::is_flatpak_available()
-            && let Ok(apps) = flatpak::list_installed_with_sizes() {
-                for (app, size) in apps {
-                    if app.trim().is_empty() {
-                        continue;
-                    }
-                    items.push(CleanupItem {
-                        id: format!("flatpak:{}", app),
-                        name: app.clone(),
-                        path: None,
-                        size,
-                        description: "Flatpak application".to_string(),
-                        category: self.category(),
-                        source: CleanupSource::PackageManager("flatpak".to_string()),
-                        selected: false,
-                        can_clean: true,
-                        blocked_reason: None,
-                        dependencies: Vec::new(),
-                    });
+            && let Ok(apps) = flatpak::list_installed_with_sizes()
+        {
+            for (app, size) in apps {
+                if app.trim().is_empty() {
+                    continue;
                 }
+                items.push(CleanupItem {
+                    id: format!("flatpak:{}", app),
+                    name: app.clone(),
+                    path: None,
+                    size,
+                    description: "Flatpak application".to_string(),
+                    category: self.category(),
+                    source: CleanupSource::PackageManager("flatpak".to_string()),
+                    selected: false,
+                    can_clean: true,
+                    blocked_reason: None,
+                    dependencies: Vec::new(),
+                });
             }
+        }
 
         if snap::is_snap_available()
-            && let Ok(apps) = snap::list_installed_with_sizes() {
-                for (app, size) in apps {
-                    if app.trim().is_empty() || app == "Name" {
-                        continue;
-                    }
-                    items.push(CleanupItem {
-                        id: format!("snap:{}", app),
-                        name: app.clone(),
-                        path: None,
-                        size,
-                        description: "Snap application".to_string(),
-                        category: self.category(),
-                        source: CleanupSource::PackageManager("snap".to_string()),
-                        selected: false,
-                        can_clean: true,
-                        blocked_reason: None,
-                        dependencies: Vec::new(),
-                    });
+            && let Ok(apps) = snap::list_installed_with_sizes()
+        {
+            for (app, size) in apps {
+                if app.trim().is_empty() || app == "Name" {
+                    continue;
                 }
+                items.push(CleanupItem {
+                    id: format!("snap:{}", app),
+                    name: app.clone(),
+                    path: None,
+                    size,
+                    description: "Snap application".to_string(),
+                    category: self.category(),
+                    source: CleanupSource::PackageManager("snap".to_string()),
+                    selected: false,
+                    can_clean: true,
+                    blocked_reason: None,
+                    dependencies: Vec::new(),
+                });
             }
+        }
 
         items.extend(list_container_images("docker")?);
         items.extend(list_container_images("podman")?);
@@ -116,26 +118,48 @@ impl Cleaner for ApplicationsCleaner {
             }
         }
 
+        // Calculate freed bytes from selected items
+        let item_sizes: std::collections::HashMap<&str, u64> = items
+            .iter()
+            .map(|item| (item.name.as_str(), item.size))
+            .collect();
+
         if !flatpak_apps.is_empty() {
             flatpak::remove_packages(&flatpak_apps, dry_run)?;
             result.cleaned_items += flatpak_apps.len();
+            result.freed_bytes += flatpak_apps
+                .iter()
+                .filter_map(|n| item_sizes.get(n.as_str()))
+                .sum::<u64>();
         }
 
         if !snap_apps.is_empty() {
             snap::remove_packages(&snap_apps, dry_run)?;
             result.cleaned_items += snap_apps.len();
+            result.freed_bytes += snap_apps
+                .iter()
+                .filter_map(|n| item_sizes.get(n.as_str()))
+                .sum::<u64>();
         }
 
         if !docker_images.is_empty() {
             remove_container_images("docker", &docker_images, dry_run)
                 .map_err(RcleanerError::Command)?;
             result.cleaned_items += docker_images.len();
+            result.freed_bytes += docker_images
+                .iter()
+                .filter_map(|n| item_sizes.get(n.as_str()))
+                .sum::<u64>();
         }
 
         if !podman_images.is_empty() {
             remove_container_images("podman", &podman_images, dry_run)
                 .map_err(RcleanerError::Command)?;
             result.cleaned_items += podman_images.len();
+            result.freed_bytes += podman_images
+                .iter()
+                .filter_map(|n| item_sizes.get(n.as_str()))
+                .sum::<u64>();
         }
 
         Ok(result)
