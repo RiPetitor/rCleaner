@@ -1,24 +1,51 @@
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::Line;
-use ratatui::widgets::{Block, Borders, Tabs};
+use crate::i18n;
+use crate::tui::screens::common::Theme;
+use crate::tui::state::State;
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, BorderType, Borders, Tabs};
 
-pub const TAB_TITLES: [&str; 6] = ["Cache", "Apps", "Temp", "Logs", "Packages", "Kernels"];
+pub fn tab_titles() -> [&'static str; 6] {
+    [
+        i18n::tab_cache(),
+        i18n::tab_apps(),
+        i18n::tab_temp(),
+        i18n::tab_logs(),
+        i18n::tab_packages(),
+        i18n::tab_kernels(),
+    ]
+}
 
-pub fn render_tabs(frame: &mut ratatui::Frame, area: ratatui::layout::Rect, active: usize) {
-    let titles = TAB_TITLES
+pub fn render_tabs(frame: &mut ratatui::Frame, area: ratatui::layout::Rect, state: &State) {
+    let titles: Vec<Line> = tab_titles()
         .iter()
-        .map(|title| Line::from(format!(" {title} ")));
+        .enumerate()
+        .map(|(i, title)| {
+            let count = state.tab_item_count(i);
+            let label = if count > 0 {
+                format!(" {title} ({count}) ")
+            } else {
+                format!(" {title} ")
+            };
+            Line::from(label)
+        })
+        .collect();
 
     let tabs = Tabs::new(titles)
-        .select(active)
-        .block(Block::default().borders(Borders::ALL).title("Categories"))
+        .select(state.current_tab)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(Theme::BORDER)),
+        )
         .highlight_style(
             Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
+                .fg(Theme::ACCENT)
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
         )
-        .style(Style::default().fg(Color::White))
-        .divider("|");
+        .style(Style::default().fg(Theme::TEXT_DIM))
+        .divider(Span::styled("│", Style::default().fg(Theme::TEXT_MUTED)));
 
     frame.render_widget(tabs, area);
 }

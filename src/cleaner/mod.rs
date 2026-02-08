@@ -21,27 +21,55 @@ use crate::config::Config;
 use crate::error::Result;
 use crate::models::{CleanupCategory, CleanupItem, CleanupResult};
 use crate::safety::SafetyChecker;
+use rayon::prelude::*;
+use std::sync::{Arc, Mutex};
 
-/// Сканирует все категории и возвращает список элементов для очистки.
-///
-/// Применяет правила безопасности к каждому элементу.
-pub fn scan_all() -> Result<Vec<CleanupItem>> {
-    let cleaners: Vec<Box<dyn Cleaner>> = vec![
+fn all_cleaners() -> Vec<Box<dyn Cleaner + Send>> {
+    vec![
         Box::new(cache::CacheCleaner::new()),
         Box::new(applications::ApplicationsCleaner::new()),
         Box::new(temp_files::TempFilesCleaner::new()),
         Box::new(logs::LogsCleaner::new()),
         Box::new(old_packages::OldPackagesCleaner::new()),
         Box::new(old_kernels::OldKernelsCleaner::new()),
-    ];
+    ]
+}
+
+/// Сканирует все категории параллельно и возвращает список элементов для очистки.
+pub fn scan_all() -> Result<Vec<CleanupItem>> {
+    scan_all_with_progress(|_, _| {})
+}
+
+/// Сканирует все категории параллельно с отслеживанием прогресса.
+pub fn scan_all_with_progress<F>(on_progress: F) -> Result<Vec<CleanupItem>>
+where
+    F: Fn(f64, &str) + Send + Sync,
+{
+    let cleaners = all_cleaners();
+    let total = cleaners.len();
+    let completed = Arc::new(Mutex::new(0usize));
+    let on_progress = Arc::new(on_progress);
+
+    let results: Vec<(String, std::result::Result<Vec<CleanupItem>, String>)> = cleaners
+        .into_par_iter()
+        .map(|cleaner| {
+            let name = cleaner.name().to_string();
+            let result = cleaner.scan().map_err(|e| e.to_string());
+
+            let mut count = completed.lock().unwrap();
+            *count += 1;
+            let progress = *count as f64 / total as f64;
+            on_progress(progress, &name);
+
+            (name, result)
+        })
+        .collect();
 
     let mut items = Vec::new();
-    for cleaner in cleaners {
-        match cleaner.scan() {
-            Ok(mut cleaned) => items.append(&mut cleaned),
-            Err(err) => {
-                log::warn!("{} scan failed: {}", cleaner.name(), err);
-            }
+    for (name, result) in results {
+        match result {
+            Ok(mut scanned) => items.append(&mut scanned),
+            Err(err) => log::warn!("{} scan failed: {}", name, err),
         }
     }
 
@@ -67,22 +95,11 @@ pub fn scan_all() -> Result<Vec<CleanupItem>> {
 }
 
 /// Очищает выбранные элементы.
-///
-/// # Arguments
-///
-/// * `items` - элементы для очистки (только с `selected = true`)
-/// * `dry_run` - если `true`, только симуляция
 pub fn clean_selected(items: &[CleanupItem], dry_run: bool) -> Result<CleanupResult> {
     clean_selected_with_progress(items, dry_run, |_progress, _label| {})
 }
 
 /// Очищает выбранные элементы с отслеживанием прогресса.
-///
-/// # Arguments
-///
-/// * `items` - элементы для очистки
-/// * `dry_run` - если `true`, только симуляция
-/// * `on_progress` - callback для отслеживания прогресса (0.0..1.0, название шага)
 pub fn clean_selected_with_progress<F>(
     items: &[CleanupItem],
     dry_run: bool,

@@ -1,5 +1,6 @@
-use ratatui::style::{Color, Style};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use crate::tui::screens::common::{Theme, styled_block};
+use ratatui::style::Style;
+use ratatui::widgets::Paragraph;
 
 pub fn render_info_panel(
     frame: &mut ratatui::Frame,
@@ -8,8 +9,9 @@ pub fn render_info_panel(
     info: &str,
 ) {
     let paragraph = Paragraph::new(info)
-        .block(Block::default().title(title).borders(Borders::ALL))
-        .style(Style::default().fg(Color::White));
+        .block(styled_block(title))
+        .style(Style::default().fg(Theme::TEXT_DIM))
+        .wrap(ratatui::widgets::Wrap { trim: false });
 
     frame.render_widget(paragraph, area);
 }

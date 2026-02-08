@@ -5,24 +5,61 @@ use crate::{NAME, VERSION};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
-/// Отрисовывает заголовок приложения.
-///
-/// Макет:
-/// ```text
-/// ┌─────────────────────────────────────────────────────────┐
-/// │ Safety: SAFE │       rCleaner        │ Bazzite 43 Atomic│
-/// │              │         v0.9.0        │       | KDE      │
-/// └─────────────────────────────────────────────────────────┘
-/// ```
+/// Цветовая палитра приложения.
+pub struct Theme;
+
+impl Theme {
+    pub const ACCENT: Color = Color::Rgb(100, 180, 255);
+    pub const ACCENT_DIM: Color = Color::Rgb(60, 120, 200);
+    pub const SUCCESS: Color = Color::Rgb(80, 220, 120);
+    pub const WARNING: Color = Color::Rgb(255, 200, 60);
+    pub const DANGER: Color = Color::Rgb(255, 90, 90);
+    pub const TEXT: Color = Color::Rgb(220, 220, 230);
+    pub const TEXT_DIM: Color = Color::Rgb(120, 125, 140);
+    pub const TEXT_MUTED: Color = Color::Rgb(80, 85, 95);
+    pub const BG_HIGHLIGHT: Color = Color::Rgb(40, 44, 52);
+    pub const BORDER: Color = Color::Rgb(60, 65, 75);
+    pub const BORDER_ACTIVE: Color = Color::Rgb(100, 180, 255);
+    pub const SAFE: Color = Color::Rgb(80, 220, 120);
+    pub const AGGRESSIVE: Color = Color::Rgb(255, 160, 50);
+    pub const SELECTED: Color = Color::Rgb(80, 220, 120);
+    pub const BLOCKED: Color = Color::Rgb(255, 90, 90);
+}
+
+pub fn styled_block(title: &str) -> Block<'_> {
+    Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(Theme::BORDER))
+        .title(Span::styled(
+            format!(" {title} "),
+            Style::default()
+                .fg(Theme::TEXT)
+                .add_modifier(Modifier::BOLD),
+        ))
+}
+
+pub fn active_block(title: &str) -> Block<'_> {
+    Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(Theme::BORDER_ACTIVE))
+        .title(Span::styled(
+            format!(" {title} "),
+            Style::default()
+                .fg(Theme::ACCENT)
+                .add_modifier(Modifier::BOLD),
+        ))
+}
+
 pub fn render_header(
     frame: &mut ratatui::Frame,
     area: Rect,
     system_label: &str,
     safety_level: SafetyLevel,
 ) {
-    // Три колонки: Safety (слева), rCleaner (центр), Система (справа)
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
@@ -32,37 +69,36 @@ pub fn render_header(
         ])
         .split(area);
 
-    // Левая часть — Safety
     let (safety_label, safety_color) = match safety_level {
-        SafetyLevel::Safe => ("SAFE", Color::Green),
-        SafetyLevel::Aggressive => ("AGGRESSIVE", Color::Yellow),
+        SafetyLevel::Safe => (" SAFE ", Theme::SAFE),
+        SafetyLevel::Aggressive => (" AGGRESSIVE ", Theme::AGGRESSIVE),
     };
 
     let left = Line::from(vec![
         Span::raw("  "),
-        Span::styled("Safety: ", Style::default().fg(Color::DarkGray)),
+        Span::styled("Safety", Style::default().fg(Theme::TEXT_DIM)),
+        Span::raw(" "),
         Span::styled(
             safety_label,
             Style::default()
-                .fg(safety_color)
+                .fg(Color::Black)
+                .bg(safety_color)
                 .add_modifier(Modifier::BOLD),
         ),
     ]);
 
-    // Центр — rCleaner + версия
     let center = Line::from(vec![
         Span::styled(
-            NAME,
+            format!(" {NAME} "),
             Style::default()
-                .fg(Color::Cyan)
+                .fg(Theme::ACCENT)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(format!(" v{VERSION}"), Style::default().fg(Color::DarkGray)),
+        Span::styled(format!("v{VERSION}"), Style::default().fg(Theme::TEXT_DIM)),
     ]);
 
-    // Правая часть — информация о системе
     let right = Line::from(vec![
-        Span::styled(system_label, Style::default().fg(Color::White)),
+        Span::styled(system_label, Style::default().fg(Theme::TEXT_DIM)),
         Span::raw("  "),
     ]);
 
