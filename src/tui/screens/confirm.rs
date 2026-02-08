@@ -1,4 +1,5 @@
-use crate::tui::screens::common::render_header;
+use crate::i18n;
+use crate::tui::screens::common::{Theme, render_header, styled_block};
 use crate::tui::state::State;
 use crate::tui::widgets::status_bar::render_status_bar;
 use crate::utils::size_format::format_size;
@@ -17,7 +18,7 @@ pub fn render_confirm_screen(
     let outer = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .title("Confirm Cleanup");
+        .border_style(Style::default().fg(Theme::WARNING));
     let inner = outer.inner(area);
     frame.render_widget(outer, area);
 
@@ -26,7 +27,7 @@ pub fn render_confirm_screen(
         .constraints([
             Constraint::Length(2),
             Constraint::Min(0),
-            Constraint::Length(3),
+            Constraint::Length(2),
         ])
         .split(inner);
 
@@ -41,52 +42,85 @@ pub fn render_confirm_screen(
         .constraints([Constraint::Length(5), Constraint::Min(0)])
         .split(chunks[1]);
 
-    let mode_label = if dry_run { "Dry run" } else { "Execute" };
-    let summary = Paragraph::new(Line::from(vec![
-        Span::styled(
-            "Selected items: ",
-            Style::default().add_modifier(Modifier::BOLD),
-        ),
-        Span::raw(format!("{selected_count}")),
-        Span::raw(" | "),
-        Span::styled(
-            "Estimated size: ",
-            Style::default().add_modifier(Modifier::BOLD),
-        ),
-        Span::raw(selected_size),
-        Span::raw(" | "),
-        Span::styled("Mode: ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(mode_label),
-    ]))
-    .block(Block::default().borders(Borders::ALL).title("Summary"));
+    let (mode_label, mode_color) = if dry_run {
+        (i18n::dry_run_label(), Theme::ACCENT)
+    } else {
+        (i18n::execute_label(), Theme::DANGER)
+    };
+
+    let summary = Paragraph::new(vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::raw("  "),
+            Span::styled(
+                format!("{}: ", i18n::items_count()),
+                Style::default().fg(Theme::TEXT_DIM),
+            ),
+            Span::styled(
+                format!("{selected_count}"),
+                Style::default()
+                    .fg(Theme::TEXT)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("    "),
+            Span::styled(
+                format!("{}: ", i18n::size_label()),
+                Style::default().fg(Theme::TEXT_DIM),
+            ),
+            Span::styled(
+                selected_size,
+                Style::default()
+                    .fg(Theme::TEXT)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("    "),
+            Span::styled(
+                format!("{}: ", i18n::mode_label()),
+                Style::default().fg(Theme::TEXT_DIM),
+            ),
+            Span::styled(
+                mode_label,
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(mode_color)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]),
+    ])
+    .block(styled_block(i18n::confirm_title()));
     frame.render_widget(summary, content_chunks[0]);
 
     let max_items = content_chunks[1].height.saturating_sub(2) as usize;
     let mut list_items = Vec::new();
     for item in selected_items.iter().take(max_items) {
-        let line = format!(
-            "{} ({})",
-            item.path.as_deref().unwrap_or(&item.name),
-            format_size(item.size)
-        );
+        let line = Line::from(vec![
+            Span::styled("  ● ", Style::default().fg(Theme::WARNING)),
+            Span::styled(
+                item.path.as_deref().unwrap_or(&item.name),
+                Style::default().fg(Theme::TEXT),
+            ),
+            Span::raw(" "),
+            Span::styled(
+                format!("({})", format_size(item.size)),
+                Style::default().fg(Theme::TEXT_DIM),
+            ),
+        ]);
         list_items.push(ListItem::new(line));
     }
     if selected_count > max_items && max_items > 0 {
-        list_items.push(ListItem::new(format!(
-            "... and {} more",
-            selected_count - max_items
-        )));
+        list_items.push(ListItem::new(Line::from(vec![Span::styled(
+            format!("  … {} {} ", i18n::and_more(), selected_count - max_items),
+            Style::default().fg(Theme::TEXT_MUTED),
+        )])));
     }
 
-    let list = List::new(list_items)
-        .block(Block::default().borders(Borders::ALL).title("Items"))
-        .style(Style::default().fg(Color::White));
+    let list = List::new(list_items).block(styled_block(i18n::items_to_clean()));
     frame.render_widget(list, content_chunks[1]);
 
     let keys = vec![
-        "[Y] Confirm".to_string(),
-        "[N] Cancel".to_string(),
-        "[Esc] Back".to_string(),
+        i18n::key_confirm().to_string(),
+        i18n::key_cancel().to_string(),
+        i18n::key_back().to_string(),
     ];
     render_status_bar(frame, chunks[2], &keys);
 }

@@ -27,6 +27,7 @@ pub use error::{RcleanerError, Result};
 
 pub mod backup;
 pub mod cleaner;
+pub mod i18n;
 pub mod models;
 pub mod safety;
 pub mod system;

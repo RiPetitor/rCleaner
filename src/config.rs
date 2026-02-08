@@ -8,6 +8,9 @@ use std::path::PathBuf;
 /// Главная структура конфигурации.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
+    /// Язык интерфейса: "en" или "ru".
+    #[serde(default = "default_language")]
+    pub language: String,
     /// Настройки безопасности.
     pub safety: SafetyConfig,
     /// Профили очистки.
@@ -81,6 +84,7 @@ pub struct BlacklistConfig {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            language: default_language(),
             safety: SafetyConfig {
                 enabled: true,
                 only_root_can_disable: true,
@@ -167,6 +171,10 @@ impl Config {
 
 fn default_temp_max_age_days() -> u64 {
     7
+}
+
+fn default_language() -> String {
+    "en".to_string()
 }
 
 #[cfg(test)]
