@@ -2,7 +2,7 @@
 
 Safe, fast TUI system cleaner for Linux — built for Atomic and classic desktop distributions.
 
-<h3 align="center">rCleaner - v1.0.0</h3>
+<h3 align="center">rCleaner - v1.0.1</h3>
 
 <p align="center">
   <img src="https://github.com/RiPetitor/rCleaner/blob/master/rCleaner.png" alt="rCleaner" width="900">
