@@ -1,4 +1,3 @@
-pub mod cleanup;
 pub mod common;
 pub mod confirm;
 pub mod main;

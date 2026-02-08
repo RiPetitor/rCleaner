@@ -10,7 +10,7 @@ use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 use walkdir::WalkDir;
 
-pub async fn create_backup_manager() -> Result<BackupManager> {
+pub fn create_backup_manager() -> Result<BackupManager> {
     BackupManager::from_config()
 }
 

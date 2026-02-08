@@ -1,10 +1,7 @@
-use tokio::process::Command;
+use std::process::Command;
 
-pub async fn run_command(name: &str, args: &[&str]) -> crate::error::Result<(bool, String)> {
-    let output = Command::new(name)
-        .args(args)
-        .output()
-        .await?;
+pub fn run_command(name: &str, args: &[&str]) -> crate::error::Result<(bool, String)> {
+    let output = Command::new(name).args(args).output()?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();

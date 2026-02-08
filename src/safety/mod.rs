@@ -9,6 +9,7 @@
 mod dependency_check;
 mod permissions;
 mod rules;
+// blacklist.rs and whitelist.rs removed — rules are managed via config.toml
 
 use self::dependency_check::check_dependencies_for_manager;
 use self::permissions::{can_clean_path, is_root};

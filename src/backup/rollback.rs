@@ -3,7 +3,7 @@ use crate::error::Result;
 use std::fs;
 use std::path::Path;
 
-pub async fn perform_rollback(backup_id: &str) -> Result<()> {
+pub fn perform_rollback(backup_id: &str) -> Result<()> {
     let manager = BackupManager::from_config()?;
     let backup = manager.load_backup(backup_id)?;
 
