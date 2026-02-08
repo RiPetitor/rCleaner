@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 pub struct Button {
     pub label: String,
     pub shortcut: Option<char>,

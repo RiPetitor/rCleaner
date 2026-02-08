@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Основные модели данных для rCleaner.
 
 use serde::{Deserialize, Serialize};

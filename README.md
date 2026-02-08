@@ -69,6 +69,9 @@ Options:
 | / | Search |
 | Q | Quit |
 
+### License
+GPL-3.0-or-later. See `LICENSE`.
+
 ---
 
 ## Русский
@@ -129,3 +132,6 @@ rcleaner [ОПЦИИ]
 | R | Пересканировать |
 | / | Поиск |
 | Q | Выход |
+
+### Лицензия
+GPL-3.0-or-later. См. `LICENSE`.

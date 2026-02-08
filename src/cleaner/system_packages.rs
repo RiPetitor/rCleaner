@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use crate::cleaner::base::Cleaner;
 use crate::cleaner::old_packages::{query_dpkg_sizes, query_pacman_sizes};
 use crate::error::Result;

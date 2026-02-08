@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use crate::cleaner::base::Cleaner;
 use crate::error::Result;
 use crate::models::{CleanupCategory, CleanupItem, CleanupResult, CleanupSource};

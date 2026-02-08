@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Модули для работы с системой и пакетными менеджерами.
 //!
 //! - [`detection`] - определение типа системы

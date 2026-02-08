@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use crate::backup::manager::BackupManager;
 use crate::error::Result;
 use std::fs;

@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Общие компоненты экранов.
 
 use crate::tui::action::SafetyLevel;

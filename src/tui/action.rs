@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Действия для Flux-архитектуры.
 
 use crate::models::{CleanupItem, CleanupResult};

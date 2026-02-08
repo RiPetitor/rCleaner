@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::process::Command;
 
 pub fn run_command(name: &str, args: &[&str]) -> crate::error::Result<(bool, String)> {

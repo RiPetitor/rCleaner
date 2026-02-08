@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 pub fn is_root() -> bool {
     crate::utils::command::is_root()
 }

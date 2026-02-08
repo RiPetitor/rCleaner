@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Интернационализация (i18n) для rCleaner.
 //!
 //! Компактные переводы — короткие строки, не перегружающие TUI.

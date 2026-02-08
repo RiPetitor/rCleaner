@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use crate::error::{RcleanerError, Result};
 use crate::system::package_manager::{PackageManager, command_failed, run_command};
 use crate::system::rpm::is_no_requires_message;

@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use crate::i18n;
 use crate::tui::action::{SafetyLevel, SettingsEdit};
 use crate::tui::screens::common::{Theme, active_block, render_header, styled_block};

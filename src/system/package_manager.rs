@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Trait и утилиты для работы с пакетными менеджерами.
 
 use crate::error::{RcleanerError, Result};

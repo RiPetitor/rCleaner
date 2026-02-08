@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Модуль безопасности для проверки элементов перед очисткой.
 //!
 //! Проверяет:

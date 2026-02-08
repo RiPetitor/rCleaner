@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use crate::error::Result;
 use crate::system::package_manager::PackageManager;
 use crate::system::{apt::AptManager, dnf::DnfManager, pacman::PacmanManager, rpm::RpmManager};

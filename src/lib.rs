@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! # rCleaner
 //!
 //! Терминальное приложение для очистки системного и пользовательского мусора на Linux.

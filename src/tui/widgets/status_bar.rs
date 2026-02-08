@@ -1,3 +1,6 @@
+// Copyright (C) 2026 RiPetitor
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use crate::tui::screens::common::Theme;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
