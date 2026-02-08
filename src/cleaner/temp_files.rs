@@ -38,16 +38,18 @@ impl Cleaner for TempFilesCleaner {
         let options = TempCleanupOptions::from_config();
 
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        let temp_paths = [
+
+        // Directories scanned with age-based filtering
+        let temp_dirs = [
             ("Temporary files (/tmp)", PathBuf::from("/tmp")),
             ("Temporary files (/var/tmp)", PathBuf::from("/var/tmp")),
             (
-                "Trash (files)",
-                PathBuf::from(format!("{}/.local/share/Trash/files", home)),
+                "Trash",
+                PathBuf::from(format!("{home}/.local/share/Trash/files")),
             ),
         ];
 
-        for (label, path) in temp_paths {
+        for (label, path) in temp_dirs {
             let entries = collect_eligible_entries(&path, &options)?;
             let size = calculate_entries_size(&entries);
             if size > 0 {
@@ -57,10 +59,115 @@ impl Cleaner for TempFilesCleaner {
                     path: Some(path.to_string_lossy().to_string()),
                     size,
                     description: format!(
-                        "Temporary directory: {} (older than {} days)",
+                        "{} (older than {} days)",
                         path.to_string_lossy(),
                         options.max_age_days
                     ),
+                    category: self.category(),
+                    source: CleanupSource::FileSystem,
+                    selected: false,
+                    can_clean: true,
+                    blocked_reason: None,
+                    dependencies: Vec::new(),
+                });
+            }
+        }
+
+        // Core dumps
+        let coredump_dirs = [
+            PathBuf::from("/var/lib/systemd/coredump"),
+            PathBuf::from(format!("{home}/.local/share/coredumpctl")),
+        ];
+        for dir in &coredump_dirs {
+            if let Ok(size) = dir_total_size(dir)
+                && size > 0
+            {
+                items.push(CleanupItem {
+                    id: dir.to_string_lossy().to_string(),
+                    name: "Core dumps".to_string(),
+                    path: Some(dir.to_string_lossy().to_string()),
+                    size,
+                    description: format!("Core dumps: {}", dir.display()),
+                    category: self.category(),
+                    source: CleanupSource::FileSystem,
+                    selected: false,
+                    can_clean: true,
+                    blocked_reason: None,
+                    dependencies: Vec::new(),
+                });
+            }
+        }
+
+        // Recent documents list
+        let recent = PathBuf::from(format!("{home}/.local/share/recently-used.xbel"));
+        if let Ok(meta) = fs::metadata(&recent)
+            && meta.len() > 0
+        {
+            items.push(CleanupItem {
+                id: recent.to_string_lossy().to_string(),
+                name: "Recent documents list".to_string(),
+                path: Some(recent.to_string_lossy().to_string()),
+                size: meta.len(),
+                description: "XBEL recent documents list".to_string(),
+                category: self.category(),
+                source: CleanupSource::FileSystem,
+                selected: false,
+                can_clean: true,
+                blocked_reason: None,
+                dependencies: Vec::new(),
+            });
+        }
+
+        // Package manager caches (pip, npm, cargo)
+        let pkg_caches = [
+            ("pip cache", format!("{home}/.cache/pip")),
+            ("npm cache", format!("{home}/.npm/_cacache")),
+            (
+                "Cargo registry cache",
+                format!("{home}/.cargo/registry/cache"),
+            ),
+        ];
+        for (label, path) in &pkg_caches {
+            let path = PathBuf::from(path);
+            if let Ok(size) = dir_total_size(&path)
+                && size > 0
+            {
+                items.push(CleanupItem {
+                    id: path.to_string_lossy().to_string(),
+                    name: label.to_string(),
+                    path: Some(path.to_string_lossy().to_string()),
+                    size,
+                    description: format!("{label}: {}", path.display()),
+                    category: self.category(),
+                    source: CleanupSource::FileSystem,
+                    selected: false,
+                    can_clean: true,
+                    blocked_reason: None,
+                    dependencies: Vec::new(),
+                });
+            }
+        }
+
+        // Old session files
+        let session_dirs = [
+            ("X11 session errors", format!("{home}/.xsession-errors")),
+            (
+                "X11 old session errors",
+                format!("{home}/.xsession-errors.old"),
+            ),
+        ];
+        for (label, path) in &session_dirs {
+            let path = PathBuf::from(path);
+            if let Ok(meta) = fs::metadata(&path)
+                && meta.is_file()
+                && meta.len() > 0
+            {
+                items.push(CleanupItem {
+                    id: path.to_string_lossy().to_string(),
+                    name: label.to_string(),
+                    path: Some(path.to_string_lossy().to_string()),
+                    size: meta.len(),
+                    description: format!("{label}: {}", path.display()),
                     category: self.category(),
                     source: CleanupSource::FileSystem,
                     selected: false,
@@ -165,6 +272,21 @@ impl TempCleanupOptions {
     }
 }
 
+fn dir_total_size(path: &Path) -> Result<u64> {
+    if !path.exists() {
+        return Ok(0);
+    }
+    let mut total = 0u64;
+    for entry in WalkDir::new(path).into_iter().flatten() {
+        if let Ok(meta) = entry.metadata()
+            && meta.is_file()
+        {
+            total += meta.len();
+        }
+    }
+    Ok(total)
+}
+
 fn collect_eligible_entries(path: &Path, options: &TempCleanupOptions) -> Result<Vec<PathBuf>> {
     let mut entries = Vec::new();
     if !path.exists() {
@@ -226,10 +348,10 @@ fn entry_size(path: &Path) -> Result<u64> {
         if entry_type.is_symlink() {
             continue;
         }
-        if entry_type.is_file() {
-            if let Ok(metadata) = entry.metadata() {
-                total += metadata.len();
-            }
+        if entry_type.is_file()
+            && let Ok(metadata) = entry.metadata()
+        {
+            total += metadata.len();
         }
     }
     Ok(total)

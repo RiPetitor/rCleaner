@@ -1,15 +1,18 @@
 use crate::cleaner;
 use crate::config::Config;
 use crate::error::{RcleanerError, Result};
+use crate::i18n;
 use crate::models::CleanupItem;
 use crate::system::detection::{SystemInfo, SystemType, detect_system};
 use crate::tui::action::{Action, SafetyLevel, Screen, SettingsEdit};
 use crate::tui::dispatcher::Dispatcher;
 use crate::tui::screens::{confirm, main, progress, results, settings};
-use crate::tui::state::State;
 use crate::utils::cache;
 use crate::utils::command;
-use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
+use crossterm::event::{
+    self, DisableMouseCapture, EnableMouseCapture, KeyCode, KeyEventKind, MouseButton,
+    MouseEventKind,
+};
 use ratatui::widgets::Clear;
 use ratatui::{DefaultTerminal, Frame};
 use std::path::PathBuf;
@@ -18,6 +21,7 @@ use std::thread;
 use std::time::Duration;
 
 type ScanResult = std::result::Result<Vec<CleanupItem>, String>;
+type CleanResult = std::result::Result<crate::models::CleanupResult, String>;
 
 pub struct App {
     dispatcher: Dispatcher,
@@ -27,21 +31,19 @@ pub struct App {
     scan_tx: mpsc::Sender<ScanResult>,
     scan_rx: mpsc::Receiver<ScanResult>,
     scan_in_progress: bool,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        Self::new()
-    }
+    clean_tx: mpsc::Sender<CleanResult>,
+    clean_rx: mpsc::Receiver<CleanResult>,
+    cli_dry_run: bool,
+    terminal_height: u16,
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(config_path: PathBuf, cli_dry_run: bool) -> Self {
         let mut dispatcher = Dispatcher::new();
         dispatcher.dispatch(Action::Init);
 
         let (scan_tx, scan_rx) = mpsc::channel();
-        let config_path = Config::default_path();
+        let (clean_tx, clean_rx) = mpsc::channel();
         let (config, status_message) = load_config(&config_path);
 
         let mut app = Self {
@@ -52,9 +54,14 @@ impl App {
             scan_tx,
             scan_rx,
             scan_in_progress: false,
+            clean_tx,
+            clean_rx,
+            cli_dry_run,
+            terminal_height: 24,
         };
 
         app.apply_config_to_state();
+        app.apply_language_from_config();
         if let Some(message) = status_message {
             app.dispatcher.dispatch(Action::SetStatus(Some(message)));
         }
@@ -65,29 +72,54 @@ impl App {
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
+        // Enable mouse capture
+        crossterm::execute!(std::io::stdout(), EnableMouseCapture)?;
+
+        let result = self.event_loop(terminal);
+
+        // Disable mouse capture on exit
+        let _ = crossterm::execute!(std::io::stdout(), DisableMouseCapture);
+
+        result
+    }
+
+    fn event_loop(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         loop {
             self.poll_scan_results();
-            let state = self.dispatcher.store().state().clone();
+            self.poll_clean_results();
+
+            let state = self.dispatcher.store().state();
             if state.should_exit {
                 break;
             }
 
-            terminal.draw(|frame| self.draw(frame, &state))?;
+            terminal.draw(|frame| {
+                self.terminal_height = frame.area().height;
+                self.draw(frame);
+            })?;
 
-            if event::poll(Duration::from_millis(150))?
-                && let event::Event::Key(key) = event::read()?
-                && key.kind == KeyEventKind::Press
-            {
-                self.handle_key_event(key, terminal)?;
+            if event::poll(Duration::from_millis(100))? {
+                match event::read()? {
+                    event::Event::Key(key) if key.kind == KeyEventKind::Press => {
+                        self.handle_key_event(key)?;
+                    }
+                    event::Event::Mouse(mouse) => {
+                        self.handle_mouse_event(mouse);
+                    }
+                    event::Event::Resize(_, h) => {
+                        self.terminal_height = h;
+                    }
+                    _ => {}
+                }
             }
         }
-
         Ok(())
     }
 
-    fn draw(&self, frame: &mut Frame, state: &State) {
+    fn draw(&self, frame: &mut Frame) {
         let area = frame.area();
         frame.render_widget(Clear, area);
+        let state = self.dispatcher.store().state();
 
         match state.active_screen {
             Screen::Main => main::render_main_screen(frame, area, state, &self.system_label),
@@ -96,7 +128,7 @@ impl App {
                 area,
                 state,
                 &self.system_label,
-                self.config.current_profile().dry_run,
+                self.effective_dry_run(),
             ),
             Screen::Settings => settings::render_settings_screen(
                 frame,
@@ -104,7 +136,7 @@ impl App {
                 state,
                 &self.system_label,
                 self.config.current_profile().auto_confirm,
-                self.config.current_profile().dry_run,
+                self.effective_dry_run(),
                 self.config.current_profile().temp_max_age_days,
                 &self.config_path.to_string_lossy(),
                 self.config.safety.enabled,
@@ -121,29 +153,58 @@ impl App {
         }
     }
 
-    fn handle_key_event(
-        &mut self,
-        key: event::KeyEvent,
-        terminal: &mut DefaultTerminal,
-    ) -> Result<()> {
+    fn effective_dry_run(&self) -> bool {
+        self.cli_dry_run || self.config.current_profile().dry_run
+    }
+
+    fn handle_key_event(&mut self, key: event::KeyEvent) -> Result<()> {
         let screen = self.dispatcher.store().state().active_screen;
 
         match screen {
-            Screen::Main => self.handle_main_keys(key, terminal)?,
-            Screen::Confirm => self.handle_confirm_keys(key, terminal)?,
+            Screen::Main => self.handle_main_keys(key)?,
+            Screen::Confirm => self.handle_confirm_keys(key)?,
             Screen::Settings => self.handle_settings_keys(key),
             Screen::Results => self.handle_results_keys(key),
-            Screen::Progress => {}
+            Screen::Progress => self.handle_progress_keys(key),
         }
 
         Ok(())
     }
 
-    fn handle_main_keys(
-        &mut self,
-        key: event::KeyEvent,
-        terminal: &mut DefaultTerminal,
-    ) -> Result<()> {
+    fn handle_mouse_event(&mut self, mouse: event::MouseEvent) {
+        let screen = self.dispatcher.store().state().active_screen;
+        if screen != Screen::Main {
+            return;
+        }
+
+        match mouse.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                // Header is ~2 lines, tabs ~3 lines, border ~1 line = offset ~7
+                // Status bar at bottom ~3 lines + border ~1
+                let list_top = 7u16;
+                let list_bottom = self.terminal_height.saturating_sub(4);
+
+                if mouse.row >= list_top && mouse.row < list_bottom {
+                    let clicked_index = (mouse.row - list_top) as usize;
+                    let scroll_offset = self.dispatcher.store().state().scroll_offset;
+                    let target = scroll_offset + clicked_index;
+                    let visible_count = self.dispatcher.store().state().visible_items_len();
+                    if target < visible_count {
+                        self.dispatcher.dispatch(Action::SelectItem(target));
+                    }
+                }
+            }
+            MouseEventKind::ScrollDown => {
+                self.dispatcher.dispatch(Action::SelectNext);
+            }
+            MouseEventKind::ScrollUp => {
+                self.dispatcher.dispatch(Action::SelectPrev);
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_main_keys(&mut self, key: event::KeyEvent) -> Result<()> {
         if self.dispatcher.store().state().search_active {
             match key.code {
                 KeyCode::Esc | KeyCode::Enter => {
@@ -172,13 +233,13 @@ impl App {
             KeyCode::Enter => {
                 if self.dispatcher.store().state().selected_count() > 0 {
                     if self.config.current_profile().auto_confirm {
-                        self.perform_cleanup(terminal)?;
+                        self.start_cleanup();
                     } else {
                         self.dispatcher.dispatch(Action::OpenConfirm);
                     }
                 } else {
                     self.dispatcher
-                        .dispatch(Action::SetStatus(Some("No items selected.".to_string())));
+                        .dispatch(Action::SetStatus(Some(i18n::no_selected().to_string())));
                 }
             }
             KeyCode::Char('/') => {
@@ -195,10 +256,10 @@ impl App {
             KeyCode::BackTab => {
                 self.dispatcher.dispatch(Action::PrevTab);
             }
-            KeyCode::Down => {
+            KeyCode::Down | KeyCode::Char('j') => {
                 self.dispatcher.dispatch(Action::SelectNext);
             }
-            KeyCode::Up => {
+            KeyCode::Up | KeyCode::Char('k') => {
                 self.dispatcher.dispatch(Action::SelectPrev);
             }
             KeyCode::Char(' ') => {
@@ -210,16 +271,20 @@ impl App {
             KeyCode::Char('s') | KeyCode::Char('S') => {
                 self.dispatcher.dispatch(Action::OpenSettings);
             }
-            // Числовые клавиши для вкладок
             KeyCode::Char('1') => self.dispatcher.dispatch(Action::ChangeTab(0)),
             KeyCode::Char('2') => self.dispatcher.dispatch(Action::ChangeTab(1)),
             KeyCode::Char('3') => self.dispatcher.dispatch(Action::ChangeTab(2)),
             KeyCode::Char('4') => self.dispatcher.dispatch(Action::ChangeTab(3)),
             KeyCode::Char('5') => self.dispatcher.dispatch(Action::ChangeTab(4)),
             KeyCode::Char('6') => self.dispatcher.dispatch(Action::ChangeTab(5)),
-            // Навигация по страницам
-            KeyCode::PageDown => self.dispatcher.dispatch(Action::SelectPageDown),
-            KeyCode::PageUp => self.dispatcher.dispatch(Action::SelectPageUp),
+            KeyCode::PageDown => {
+                let page = self.page_size();
+                self.dispatcher.dispatch(Action::SelectPageDown(page));
+            }
+            KeyCode::PageUp => {
+                let page = self.page_size();
+                self.dispatcher.dispatch(Action::SelectPageUp(page));
+            }
             KeyCode::Home => self.dispatcher.dispatch(Action::SelectFirst),
             KeyCode::End => self.dispatcher.dispatch(Action::SelectLast),
             _ => {}
@@ -227,14 +292,10 @@ impl App {
         Ok(())
     }
 
-    fn handle_confirm_keys(
-        &mut self,
-        key: event::KeyEvent,
-        terminal: &mut DefaultTerminal,
-    ) -> Result<()> {
+    fn handle_confirm_keys(&mut self, key: event::KeyEvent) -> Result<()> {
         match key.code {
             KeyCode::Char('y') | KeyCode::Char('Y') => {
-                self.perform_cleanup(terminal)?;
+                self.start_cleanup();
             }
             KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
                 self.dispatcher.dispatch(Action::BackToMain);
@@ -244,8 +305,13 @@ impl App {
         Ok(())
     }
 
+    /// Row counts per settings block.
+    const SETTINGS_BLOCK_ROWS: [usize; 3] = [4, 2, 2];
+
     fn handle_settings_keys(&mut self, key: event::KeyEvent) {
         let state = self.dispatcher.store().state().clone();
+
+        // Text editing mode (whitelist/blacklist input)
         if let Some(edit_target) = state.settings_edit {
             match key.code {
                 KeyCode::Enter => {
@@ -267,32 +333,64 @@ impl App {
             return;
         }
 
+        let block = state.settings_block;
+        let max_rows = Self::SETTINGS_BLOCK_ROWS[block];
+
         match key.code {
+            KeyCode::Tab => {
+                self.dispatcher.dispatch(Action::NextSettingsBlock);
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.dispatcher.dispatch(Action::SettingsRowNext(max_rows));
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.dispatcher.dispatch(Action::SettingsRowPrev);
+            }
+            KeyCode::Enter | KeyCode::Char(' ') => {
+                self.activate_settings_row(block, state.settings_row);
+            }
             KeyCode::Left | KeyCode::Right => {
-                let next = match state.safety_level {
-                    SafetyLevel::Safe => SafetyLevel::Aggressive,
-                    SafetyLevel::Aggressive => SafetyLevel::Safe,
-                };
-                self.apply_safety_level(next);
+                // Left/Right also toggle in Safety Level block
+                if block == 1 {
+                    self.activate_settings_row(block, state.settings_row);
+                }
             }
-            KeyCode::Char('e') | KeyCode::Char('E') => {
-                self.toggle_safety_enabled();
-            }
-            KeyCode::Char('o') | KeyCode::Char('O') => {
-                self.toggle_root_only_disable();
-            }
-            KeyCode::Char('d') | KeyCode::Char('D') => {
-                self.toggle_dry_run();
-            }
-            KeyCode::Char('w') | KeyCode::Char('W') => {
-                self.begin_settings_edit(SettingsEdit::Whitelist);
-            }
-            KeyCode::Char('b') | KeyCode::Char('B') => {
-                self.begin_settings_edit(SettingsEdit::Blacklist);
-            }
-            KeyCode::Enter | KeyCode::Esc => {
+            KeyCode::Esc => {
                 self.dispatcher.dispatch(Action::BackToMain);
             }
+            _ => {}
+        }
+    }
+
+    fn activate_settings_row(&mut self, block: usize, row: usize) {
+        match block {
+            0 => match row {
+                0 => self.toggle_safety_enabled(),
+                1 => self.toggle_root_only_disable(),
+                2 => self.toggle_dry_run(),
+                3 => {
+                    let lang = i18n::toggle_lang();
+                    self.config.language = match lang {
+                        i18n::Lang::En => "en".to_string(),
+                        i18n::Lang::Ru => "ru".to_string(),
+                    };
+                    self.save_config(i18n::config_saved());
+                }
+                _ => {}
+            },
+            1 => {
+                let level = if row == 0 {
+                    SafetyLevel::Safe
+                } else {
+                    SafetyLevel::Aggressive
+                };
+                self.apply_safety_level(level);
+            }
+            2 => match row {
+                0 => self.begin_settings_edit(SettingsEdit::Whitelist),
+                1 => self.begin_settings_edit(SettingsEdit::Blacklist),
+                _ => {}
+            },
             _ => {}
         }
     }
@@ -307,59 +405,59 @@ impl App {
         }
     }
 
-    fn perform_cleanup(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
+    fn handle_progress_keys(&mut self, key: event::KeyEvent) {
+        if key.code == KeyCode::Esc {
+            self.dispatcher.dispatch(Action::CancelCleanup);
+        }
+    }
+
+    fn page_size(&self) -> usize {
+        // Header(2) + Tabs(3) + SearchBox(3) + StatusBar(3) + borders(2) = ~13
+        self.terminal_height.saturating_sub(13).max(5) as usize
+    }
+
+    fn start_cleanup(&mut self) {
         let selected_items = self.dispatcher.store().state().selected_items();
         if selected_items.is_empty() {
             self.dispatcher
-                .dispatch(Action::SetStatus(Some("No items selected.".to_string())));
+                .dispatch(Action::SetStatus(Some(i18n::no_selected().to_string())));
             self.dispatcher.dispatch(Action::BackToMain);
-            return Ok(());
+            return;
         }
 
         self.dispatcher.dispatch(Action::StartCleanup);
-        self.draw_current(terminal);
 
-        let mut last_error = None;
-        let result = cleaner::clean_selected_with_progress(
-            &selected_items,
-            self.config.current_profile().dry_run,
-            |progress, step| {
-                self.dispatcher.dispatch(Action::CleanupProgress {
-                    progress,
-                    step: Some(step.to_string()),
-                });
-                if let Err(err) = terminal.draw(|frame| {
-                    let state = self.dispatcher.store().state().clone();
-                    self.draw(frame, &state);
-                }) {
-                    last_error = Some(err.to_string());
+        let dry_run = self.effective_dry_run();
+        let tx = self.clean_tx.clone();
+        thread::spawn(move || {
+            let result =
+                cleaner::clean_selected(&selected_items, dry_run).map_err(|e| e.to_string());
+            let _ = tx.send(result);
+        });
+    }
+
+    fn poll_clean_results(&mut self) {
+        while let Ok(result) = self.clean_rx.try_recv() {
+            match result {
+                Ok(cleanup_result) => {
+                    self.dispatcher
+                        .dispatch(Action::FinishCleanup(cleanup_result));
                 }
-            },
-        );
-
-        if let Some(message) = last_error {
-            log::warn!("Failed to render progress: {}", message);
-        }
-
-        match result {
-            Ok(result) => self.dispatcher.dispatch(Action::FinishCleanup(result)),
-            Err(err) => {
-                let mut failed = crate::models::CleanupResult::default();
-                failed.errors.push(err.to_string());
-                self.dispatcher.dispatch(Action::FinishCleanup(failed));
+                Err(err) => {
+                    let mut failed = crate::models::CleanupResult::default();
+                    failed.errors.push(err);
+                    self.dispatcher.dispatch(Action::FinishCleanup(failed));
+                }
             }
         }
-
-        Ok(())
     }
 
     fn load_cached_items(&mut self) {
         match cache::load_cached_items() {
             Ok(Some(items)) => {
                 self.dispatcher.dispatch(Action::SetItems(items));
-                self.dispatcher.dispatch(Action::SetStatus(Some(
-                    "Loaded cached results.".to_string(),
-                )));
+                self.dispatcher
+                    .dispatch(Action::SetStatus(Some(i18n::loaded_cache().to_string())));
             }
             Ok(None) => {}
             Err(err) => {
@@ -371,7 +469,7 @@ impl App {
     fn request_scan(&mut self, reason: &str) {
         if self.scan_in_progress {
             self.dispatcher.dispatch(Action::SetStatus(Some(
-                "Scan already in progress.".to_string(),
+                i18n::scan_in_progress().to_string(),
             )));
             return;
         }
@@ -399,22 +497,14 @@ impl App {
                     }
                     self.dispatcher.dispatch(Action::SetItems(items));
                     self.dispatcher
-                        .dispatch(Action::SetStatus(Some("Scan complete.".to_string())));
+                        .dispatch(Action::SetStatus(Some(i18n::scan_complete().to_string())));
                 }
                 Err(err) => {
                     log::error!("Failed to scan items: {}", err);
-                    self.dispatcher.dispatch(Action::SetStatus(Some(
-                        "Scan failed. See logs.".to_string(),
-                    )));
+                    self.dispatcher
+                        .dispatch(Action::SetStatus(Some(i18n::scan_failed().to_string())));
                 }
             }
-        }
-    }
-
-    fn draw_current(&self, terminal: &mut DefaultTerminal) {
-        let state = self.dispatcher.store().state().clone();
-        if let Err(err) = terminal.draw(|frame| self.draw(frame, &state)) {
-            log::warn!("Failed to render: {}", err);
         }
     }
 
@@ -423,14 +513,21 @@ impl App {
         self.dispatcher.dispatch(Action::ChangeSafetyLevel(level));
     }
 
+    fn apply_language_from_config(&self) {
+        let lang = match self.config.language.as_str() {
+            "ru" => i18n::Lang::Ru,
+            _ => i18n::Lang::En,
+        };
+        i18n::set_lang(lang);
+    }
+
     fn apply_safety_level(&mut self, level: SafetyLevel) {
         self.dispatcher.dispatch(Action::ChangeSafetyLevel(level));
         self.config.safety.level = match level {
             SafetyLevel::Safe => "safe".to_string(),
             SafetyLevel::Aggressive => "aggressive".to_string(),
         };
-
-        self.save_config("Config saved.");
+        self.save_config(i18n::config_saved());
     }
 
     fn begin_settings_edit(&mut self, target: SettingsEdit) {
@@ -444,12 +541,19 @@ impl App {
 
     fn apply_settings_edit(&mut self, target: SettingsEdit, input: &str) {
         let values = parse_rules_input(input);
+        if let Some(err) = validate_rules_input(&values) {
+            self.dispatcher.dispatch(Action::SetStatus(Some(format!(
+                "{}: {err}",
+                i18n::invalid_input()
+            ))));
+            return;
+        }
         match target {
             SettingsEdit::Whitelist => self.config.rules.whitelist.paths = values,
             SettingsEdit::Blacklist => self.config.rules.blacklist.patterns = values,
         }
 
-        if self.save_config("Rules updated.") {
+        if self.save_config(i18n::rules_updated()) {
             self.request_scan("Rules updated");
         }
         self.dispatcher.dispatch(Action::EndSettingsEdit);
@@ -460,28 +564,26 @@ impl App {
             && self.config.safety.only_root_can_disable
             && !command::is_root()
         {
-            self.dispatcher.dispatch(Action::SetStatus(Some(
-                "Root required to disable safety.".to_string(),
-            )));
+            self.dispatcher
+                .dispatch(Action::SetStatus(Some(i18n::root_required().to_string())));
             return;
         }
 
         self.config.safety.enabled = !self.config.safety.enabled;
-        if self.save_config("Safety updated.") {
+        if self.save_config(i18n::safety_updated()) {
             self.request_scan("Safety updated");
         }
     }
 
     fn toggle_root_only_disable(&mut self) {
         if !command::is_root() {
-            self.dispatcher.dispatch(Action::SetStatus(Some(
-                "Root required to change this setting.".to_string(),
-            )));
+            self.dispatcher
+                .dispatch(Action::SetStatus(Some(i18n::root_change().to_string())));
             return;
         }
 
         self.config.safety.only_root_can_disable = !self.config.safety.only_root_can_disable;
-        self.save_config("Safety policy updated.");
+        self.save_config(i18n::policy_updated());
     }
 
     fn toggle_dry_run(&mut self) {
@@ -491,15 +593,14 @@ impl App {
             &mut self.config.profiles.safe
         };
         profile.dry_run = !profile.dry_run;
-        self.save_config("Dry-run updated.");
+        self.save_config(i18n::dryrun_updated());
     }
 
     fn save_config(&mut self, message: &str) -> bool {
         if let Err(err) = self.config.save(&self.config_path) {
             log::warn!("Failed to save config: {}", err);
-            self.dispatcher.dispatch(Action::SetStatus(Some(
-                "Failed to save config.".to_string(),
-            )));
+            self.dispatcher
+                .dispatch(Action::SetStatus(Some(i18n::config_fail().to_string())));
             false
         } else {
             self.dispatcher
@@ -513,6 +614,7 @@ impl App {
             Ok(config) => {
                 self.config = config;
                 self.apply_config_to_state();
+                self.apply_language_from_config();
             }
             Err(err) => {
                 log::warn!("Failed to reload config: {}", err);
@@ -528,6 +630,26 @@ fn parse_rules_input(input: &str) -> Vec<String> {
         .filter(|entry| !entry.is_empty())
         .map(String::from)
         .collect()
+}
+
+fn validate_rules_input(values: &[String]) -> Option<String> {
+    for value in values {
+        if value.contains("..") {
+            return Some(format!("path traversal not allowed: {value}"));
+        }
+        if value.starts_with('/')
+            && !value.starts_with("/tmp")
+            && !value.starts_with("/home")
+            && [
+                "/boot", "/usr", "/bin", "/sbin", "/lib", "/etc", "/root", "/dev", "/proc", "/sys",
+            ]
+            .iter()
+            .any(|p| value.starts_with(p))
+        {
+            return Some(format!("system path not allowed: {value}"));
+        }
+    }
+    None
 }
 
 fn build_system_label() -> String {
@@ -558,10 +680,7 @@ fn load_config(path: &PathBuf) -> (Config, Option<String>) {
             let config = Config::default();
             if let Err(save_err) = config.save(path) {
                 log::warn!("Failed to write default config: {}", save_err);
-                return (
-                    config,
-                    Some("Using defaults (config not saved).".to_string()),
-                );
+                return (config, Some(i18n::config_not_saved().to_string()));
             }
             (
                 config,
@@ -573,7 +692,7 @@ fn load_config(path: &PathBuf) -> (Config, Option<String>) {
         }
         Err(err) => {
             log::warn!("Failed to load config: {}", err);
-            (Config::default(), Some("Using default config.".to_string()))
+            (Config::default(), Some(i18n::default_config().to_string()))
         }
     }
 }

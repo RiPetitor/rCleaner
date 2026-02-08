@@ -2,7 +2,7 @@ use crate::cleaner::base::Cleaner;
 use crate::config::Config;
 use crate::error::Result;
 use crate::models::{CleanupCategory, CleanupItem, CleanupResult, CleanupSource};
-use crate::system::{apt, rpm};
+use crate::system::{apt, pacman, rpm};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::time::UNIX_EPOCH;
@@ -38,6 +38,8 @@ impl Cleaner for OldKernelsCleaner {
 
         items.extend(scan_rpm_kernels(&current_kernel, keep_recent)?);
         items.extend(scan_apt_kernels(&current_kernel, keep_recent)?);
+        items.extend(scan_pacman_kernels(&current_kernel, keep_recent)?);
+        items.extend(scan_modules_dir(&current_kernel, keep_recent)?);
 
         Ok(items)
     }
@@ -46,6 +48,7 @@ impl Cleaner for OldKernelsCleaner {
         let mut result = CleanupResult::default();
         let mut rpm_packages = Vec::new();
         let mut apt_packages = Vec::new();
+        let mut pacman_packages = Vec::new();
 
         for item in items {
             if !self.can_clean(item) {
@@ -57,8 +60,22 @@ impl Cleaner for OldKernelsCleaner {
                 CleanupSource::PackageManager(manager) => match manager.as_str() {
                     "rpm" => rpm_packages.push(item.name.clone()),
                     "apt" => apt_packages.push(item.name.clone()),
+                    "pacman" => pacman_packages.push(item.name.clone()),
                     _ => result.skipped_items += 1,
                 },
+                CleanupSource::FileSystem => {
+                    // /lib/modules/ dirs
+                    if let Some(ref path) = item.path {
+                        if dry_run {
+                            log::info!("[DRY RUN] Would remove: {path}");
+                        } else if let Err(e) = std::fs::remove_dir_all(path) {
+                            result.errors.push(format!("{path}: {e}"));
+                            continue;
+                        }
+                        result.cleaned_items += 1;
+                        result.freed_bytes += item.size;
+                    }
+                }
                 _ => result.skipped_items += 1,
             }
         }
@@ -71,6 +88,11 @@ impl Cleaner for OldKernelsCleaner {
         if !apt_packages.is_empty() {
             apt::remove_packages(&apt_packages, dry_run)?;
             result.cleaned_items += apt_packages.len();
+        }
+
+        if !pacman_packages.is_empty() {
+            pacman::remove_packages(&pacman_packages, dry_run)?;
+            result.cleaned_items += pacman_packages.len();
         }
 
         Ok(result)
@@ -95,7 +117,16 @@ fn keep_recent_kernels() -> usize {
 
 fn scan_rpm_kernels(current: &str, keep_recent: usize) -> Result<Vec<CleanupItem>> {
     let output = std::process::Command::new("rpm")
-        .args(["-q", "kernel", "kernel-core", "kernel-modules"])
+        .args([
+            "-q",
+            "kernel",
+            "kernel-core",
+            "kernel-modules",
+            "kernel-modules-core",
+            "kernel-modules-extra",
+            "kernel-devel",
+            "kernel-headers",
+        ])
         .output();
 
     let Ok(output) = output else {
@@ -137,6 +168,169 @@ fn scan_apt_kernels(current: &str, keep_recent: usize) -> Result<Vec<CleanupItem
     ))
 }
 
+fn scan_pacman_kernels(current: &str, keep_recent: usize) -> Result<Vec<CleanupItem>> {
+    // Check if pacman is available
+    let output = std::process::Command::new("pacman")
+        .args(["-Qq", "linux", "linux-lts", "linux-zen", "linux-hardened"])
+        .output();
+
+    let Ok(output) = output else {
+        return Ok(Vec::new());
+    };
+
+    // pacman -Qq returns 1 if none of the packages are installed
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let packages: Vec<String> = stdout
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(String::from)
+        .collect();
+
+    if packages.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Also look for linux*-headers packages
+    let headers_output = std::process::Command::new("pacman").args(["-Qq"]).output();
+
+    let mut all_kernel_pkgs = packages;
+    if let Ok(out) = headers_output
+        && out.status.success()
+    {
+        for line in String::from_utf8_lossy(&out.stdout).lines() {
+            let pkg = line.trim();
+            if (pkg.starts_with("linux") && pkg.ends_with("-headers"))
+                || (pkg.starts_with("linux") && pkg.contains("-docs"))
+            {
+                all_kernel_pkgs.push(pkg.to_string());
+            }
+        }
+    }
+
+    // Get version info for each kernel package
+    let mut version_pkgs: HashMap<String, Vec<String>> = HashMap::new();
+    for pkg in &all_kernel_pkgs {
+        let qi = std::process::Command::new("pacman")
+            .args(["-Q", pkg])
+            .output();
+        if let Ok(out) = qi {
+            let line = String::from_utf8_lossy(&out.stdout);
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() == 2 {
+                version_pkgs
+                    .entry(parts[1].to_string())
+                    .or_default()
+                    .push(parts[0].to_string());
+            }
+        }
+    }
+
+    if version_pkgs.len() <= 1 {
+        // Only one kernel version installed, nothing to remove
+        return Ok(Vec::new());
+    }
+
+    let mut version_times: Vec<(String, i64)> = version_pkgs
+        .keys()
+        .map(|v| (v.clone(), kernel_mtime_seconds(v)))
+        .collect();
+    version_times.sort_by(|(_, a), (_, b)| b.cmp(a));
+
+    let keep = select_versions_to_keep(version_times, current, keep_recent);
+
+    let mut items = Vec::new();
+    for (version, pkgs) in &version_pkgs {
+        if keep.contains(version) {
+            continue;
+        }
+        for pkg in pkgs {
+            items.push(CleanupItem {
+                id: format!("pacman:{pkg}"),
+                name: pkg.clone(),
+                path: None,
+                size: 0,
+                description: format!("Old kernel package (pacman) {version}"),
+                category: CleanupCategory::OldKernels,
+                source: CleanupSource::PackageManager("pacman".to_string()),
+                selected: false,
+                can_clean: true,
+                blocked_reason: None,
+                dependencies: Vec::new(),
+            });
+        }
+    }
+
+    Ok(items)
+}
+
+fn scan_modules_dir(current: &str, keep_recent: usize) -> Result<Vec<CleanupItem>> {
+    // Scan /lib/modules/ for old kernel module directories
+    let modules_path = Path::new("/lib/modules");
+    if !modules_path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let entries = match std::fs::read_dir(modules_path) {
+        Ok(entries) => entries,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let mut version_dirs: Vec<(String, std::path::PathBuf, u64)> = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let version = entry.file_name().to_string_lossy().to_string();
+        if !is_version_like(&version) {
+            continue;
+        }
+        // Calculate directory size
+        let size: u64 = walkdir::WalkDir::new(&path)
+            .into_iter()
+            .flatten()
+            .filter_map(|e| e.metadata().ok())
+            .filter(|m| m.is_file())
+            .map(|m| m.len())
+            .sum();
+        version_dirs.push((version, path, size));
+    }
+
+    if version_dirs.len() <= 1 {
+        return Ok(Vec::new());
+    }
+
+    let version_times: Vec<(String, i64)> = version_dirs
+        .iter()
+        .map(|(v, _, _)| (v.clone(), kernel_mtime_seconds(v)))
+        .collect();
+
+    let keep = select_versions_to_keep(version_times, current, keep_recent);
+
+    let mut items = Vec::new();
+    for (version, path, size) in version_dirs {
+        if keep.contains(&version) {
+            continue;
+        }
+        items.push(CleanupItem {
+            id: format!("modules:{version}"),
+            name: format!("/lib/modules/{version}"),
+            path: Some(path.to_string_lossy().to_string()),
+            size,
+            description: format!("Old kernel modules ({version})"),
+            category: CleanupCategory::OldKernels,
+            source: CleanupSource::FileSystem,
+            selected: false,
+            can_clean: true,
+            blocked_reason: None,
+            dependencies: Vec::new(),
+        });
+    }
+
+    Ok(items)
+}
+
 enum KernelPrefixes {
     Rpm,
     Apt,
@@ -150,7 +344,15 @@ fn build_kernel_items(
     prefixes: KernelPrefixes,
 ) -> Vec<CleanupItem> {
     let prefix_list = match prefixes {
-        KernelPrefixes::Rpm => vec!["kernel-core-", "kernel-modules-", "kernel-"],
+        KernelPrefixes::Rpm => vec![
+            "kernel-modules-extra-",
+            "kernel-modules-core-",
+            "kernel-modules-",
+            "kernel-headers-",
+            "kernel-devel-",
+            "kernel-core-",
+            "kernel-",
+        ],
         KernelPrefixes::Apt => vec!["linux-image-unsigned-", "linux-image-"],
     };
 
@@ -225,10 +427,10 @@ fn group_by_version(packages: &[String], prefixes: &[&str]) -> HashMap<String, V
 
 fn extract_kernel_version(package: &str, prefixes: &[&str]) -> Option<String> {
     for prefix in prefixes {
-        if let Some(rest) = package.strip_prefix(prefix) {
-            if is_version_like(rest) {
-                return Some(rest.to_string());
-            }
+        if let Some(rest) = package.strip_prefix(prefix)
+            && is_version_like(rest)
+        {
+            return Some(rest.to_string());
         }
     }
     None
