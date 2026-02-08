@@ -50,10 +50,12 @@ impl PackageManager for FlatpakManager {
             return Ok(());
         }
 
-        let mut args = vec!["uninstall", "-y"];
         if dry_run {
-            args.push("--dry-run");
+
+            return Ok(());
         }
+
+        let args = vec!["uninstall", "-y"];
         let package_args = packages.iter().map(String::as_str).collect::<Vec<_>>();
         let mut combined = args;
         combined.extend(package_args);
